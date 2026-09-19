@@ -1,0 +1,22 @@
+name: Bug report
+description: Report behavior that does not match the specification.
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+      description: Include the relevant OpenSpec requirement if known.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Give steps using a public or synthetic repository. Do not include private source or secrets.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node and pnpm versions, and application commit.

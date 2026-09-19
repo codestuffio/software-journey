@@ -1,0 +1,30 @@
+{
+  "name": "software-journey",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22.13.0 <23",
+    "pnpm": "11.7.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --filter=@software-journey/web",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "pnpm build && node --test tests/smoke.test.mjs",
+    "spec": "openspec",
+    "spec:validate": "openspec validate --all --strict --no-interactive",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm spec:validate",
+    "cli": "pnpm --filter @software-journey/cli dev"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@fission-ai/openspec": "1.13.1",
+    "turbo": "2.11.1",
+    "typescript": "5.9.3"
+  }
+}

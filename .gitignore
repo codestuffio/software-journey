@@ -1,0 +1,31 @@
+# Dependencies and generated builds
+node_modules/
+.pnpm-store/
+.turbo/
+dist/
+.output/
+.nitro/
+.tanstack/
+coverage/
+*.tsbuildinfo
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.compound-engineering/config.local.yaml
+
+# Imported repositories and derived knowledge stay local
+.software-journey/
+.local/
+
+# Tooling and OS files
+*.log
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+playwright-report/
+test-results/
