@@ -147,6 +147,59 @@ export const snapshotSchema = z
 
 export type Snapshot = z.infer<typeof snapshotSchema>;
 
+export const explorerLimits = {
+  maximumDocumentationExtracts: 48,
+  maximumExtractTextCharacters: 24_000,
+} as const;
+
+export const explorerProjectionSchema = z
+  .object({
+    repository: snapshotSchema.shape.repository,
+    run: snapshotSchema.shape.run,
+    coverage: coverageSchema,
+    documentation: z.array(
+      documentationExtractSchema.extend({
+        textTruncated: z.boolean(),
+      }),
+    ),
+    totalDocumentationExtracts: z.number().int().nonnegative(),
+    projectionTruncated: z.boolean(),
+  })
+  .strict();
+
+export type ExplorerProjection = z.infer<typeof explorerProjectionSchema>;
+
+/** Creates a bounded, browser-safe view of a validated local snapshot. */
+export function createExplorerProjection(value: unknown): ExplorerProjection {
+  const snapshot = snapshotSchema.parse(value);
+  const documentation = snapshot.documentation
+    .slice(0, explorerLimits.maximumDocumentationExtracts)
+    .map((extract) => {
+      const textTruncated =
+        extract.text.length > explorerLimits.maximumExtractTextCharacters;
+
+      return {
+        ...extract,
+        text: textTruncated
+          ? `${extract.text.slice(0, explorerLimits.maximumExtractTextCharacters)}\n\n[Captured extract truncated for this local view.]`
+          : extract.text,
+        textTruncated,
+      };
+    });
+
+  return explorerProjectionSchema.parse({
+    repository: snapshot.repository,
+    run: snapshot.run,
+    coverage: snapshot.coverage,
+    documentation,
+    totalDocumentationExtracts: snapshot.documentation.length,
+    projectionTruncated:
+      snapshot.documentation.length >
+        explorerLimits.maximumDocumentationExtracts ||
+      documentation.some((extract) => extract.textTruncated),
+  });
+}
+
 /** Validates untrusted serialized data before an analyzer exposes a snapshot. */
 export function validateSnapshotForWrite(value: unknown): Snapshot {
   return snapshotSchema.parse(value);

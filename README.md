@@ -2,7 +2,7 @@
 
 Understand a repository through its code, documentation, and history. The planned application turns that evidence into developer onboarding, an interactive reference, and focused context for AI agents.
 
-**Current state:** local committed-HEAD repository snapshots are available from the CLI. The browser explorer and tutorial generation remain planned.
+**Current state:** local committed-HEAD repository snapshots are available from the CLI and can be explored in the browser. Guided tutorial generation remains planned.
 
 ## Start locally
 
@@ -36,6 +36,12 @@ node apps/cli/dist/index.js analyze \
 
 The output is local JSON, not sanitized content. It never executes repository code, Git hooks, or source-text instructions; it does not fetch or upload repository content.
 
+## Explore a snapshot
+
+Open [localhost:3000](http://localhost:3000), choose **Open a local snapshot**, and select the `snapshot.json` written by the CLI. The explorer validates the selected file in the browser, then shows only recorded evidence: collection coverage, omissions, documentation extracts, and immutable source citations. It never reads the selected repository checkout, executes source content, or sends the snapshot to a provider.
+
+The built-in field-guide sample is synthetic. Keep real snapshots—including the OpenSpec POC—under ignored `.software-journey/` or `.local/` directories.
+
 ## Workspace
 
 | Location | Responsibility |
@@ -55,11 +61,11 @@ Turborepo coordinates workspace tasks. Vite bundles TanStack Start. **Do not use
 
 ## Spec-driven development
 
-Start with [the product direction](docs/product.md) and [architecture](docs/architecture.md). The first proposed feature is [local repository analysis](openspec/changes/analyze-local-repository/proposal.md).
+Start with [the product direction](docs/product.md) and [architecture](docs/architecture.md). The active explorer change is [explore-local-snapshot](openspec/changes/explore-local-snapshot/proposal.md).
 
 ```sh
 pnpm spec list
-pnpm spec status --change analyze-local-repository
+pnpm spec status --change explore-local-snapshot
 pnpm spec:validate
 ```
 

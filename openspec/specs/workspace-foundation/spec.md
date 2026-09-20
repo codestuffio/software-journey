@@ -14,11 +14,15 @@ The project SHALL provide a pinned pnpm workspace with strict TypeScript, build 
 - **THEN** the workspace runs formatting/lint, type checks, production builds, runtime smoke tests, and strict specification validation
 
 ### Requirement: TanStack application
-The web application SHALL use TanStack Start and TanStack Router with Vite and SHALL NOT use Next.js.
+The web application SHALL use TanStack Start and TanStack Router with Vite and SHALL NOT use Next.js. It SHALL provide a local, evidence-first snapshot exploration interface for supported local snapshots.
 
 #### Scenario: Contributor starts development
 - **WHEN** the contributor runs `pnpm dev`
-- **THEN** a React web shell is available locally and identifies the committed-HEAD local analysis boundary
+- **THEN** a React web application is available locally with an explicit snapshot-selection state and the committed-HEAD local analysis boundary
+
+#### Scenario: A reader opens a supported snapshot
+- **WHEN** the reader selects a supported snapshot through the application
+- **THEN** the application displays the snapshot's recorded evidence and coverage without accessing the target repository from the browser
 
 ### Requirement: Honest scaffold interfaces
 The CLI SHALL provide help for implemented commands and SHALL reject unsupported commands without pretending they completed.

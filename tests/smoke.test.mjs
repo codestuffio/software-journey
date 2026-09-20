@@ -76,7 +76,6 @@ test("production web server renders the shell and serves its assets", {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /Software Journey/);
-  assert.match(html, /Local committed-HEAD analysis is ready from the CLI/);
   const assets = [...html.matchAll(/(?:href|src)="([^" ]+\.(?:css|js))"/g)].map(
     (match) => match[1],
   );

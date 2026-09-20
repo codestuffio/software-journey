@@ -1,6 +1,10 @@
 import { expect, test } from "vitest";
 
-import { validateSnapshotForWrite } from "../packages/contracts/src/index.ts";
+import {
+  createExplorerProjection,
+  explorerLimits,
+  validateSnapshotForWrite,
+} from "../packages/contracts/src/index.ts";
 
 const sha = "a".repeat(40);
 const identity = `sha256:${"b".repeat(64)}`;
@@ -73,4 +77,31 @@ test("snapshot write validation rejects unsafe paths", () => {
   invalid.inventory[0].path = "notes\nunsafe.md";
 
   expect(() => validateSnapshotForWrite(invalid)).toThrow();
+});
+
+test("explorer projection labels a bounded documentation view", () => {
+  const snapshot = validSnapshot();
+  snapshot.documentation = Array.from(
+    { length: explorerLimits.maximumDocumentationExtracts + 1 },
+    (_, index) => ({
+      ...snapshot.documentation[0],
+      contentId: `sha256:${index.toString(16).padStart(64, "0")}`,
+      source: {
+        ...snapshot.documentation[0].source,
+        path: `docs/note-${index}.md`,
+      },
+      text: "x".repeat(explorerLimits.maximumExtractTextCharacters + 1),
+    }),
+  );
+
+  const projection = createExplorerProjection(snapshot);
+
+  expect(projection.totalDocumentationExtracts).toBe(
+    explorerLimits.maximumDocumentationExtracts + 1,
+  );
+  expect(projection.documentation).toHaveLength(
+    explorerLimits.maximumDocumentationExtracts,
+  );
+  expect(projection.projectionTruncated).toBe(true);
+  expect(projection.documentation[0]?.textTruncated).toBe(true);
 });

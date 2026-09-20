@@ -487,3 +487,329 @@ footer {
     animation: none;
   }
 }
+
+/* Explorer surfaces: quiet reading ground under the field-guide ornament. */
+.explorer-shell {
+  padding-bottom: 20px;
+}
+.explorer-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
+  gap: clamp(32px, 7vw, 90px);
+  align-items: end;
+  padding: 74px 0 42px;
+}
+.explorer-hero h1 {
+  margin: 14px 0 22px;
+  font-size: clamp(42px, 5.7vw, 72px);
+}
+.explorer-actions {
+  padding: 24px;
+  border: 1px solid #aa9b82;
+  border-radius: 4px;
+  background: rgb(250 247 234 / 64%);
+  box-shadow: 5px 5px 0 #c8b88f;
+}
+.snapshot-picker {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.primary-action {
+  width: 100%;
+  padding: 14px 16px;
+  border-color: #243b33;
+  background: #243b33;
+  color: #fffaf0;
+  text-align: left;
+}
+.primary-action span {
+  float: right;
+  color: #f0c66d;
+}
+.explorer-actions p {
+  margin: 14px 0;
+  color: #596258;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.sample-action {
+  padding: 0;
+  border: 0;
+  color: #415f52;
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.session-line {
+  padding: 12px 16px;
+  border-top: 1px solid #b9ac93;
+  border-bottom: 1px solid #b9ac93;
+  color: #556056;
+  font:
+    12px ui-monospace,
+    monospace;
+}
+.session-line > span {
+  color: #b05e24;
+}
+.trailhead,
+.field-notes,
+.evidence-lantern,
+.explorer-message {
+  border: 1px solid #aa9b82;
+  border-radius: 4px;
+  background: rgb(250 247 234 / 62%);
+}
+.trailhead {
+  margin: 34px 0;
+  padding: clamp(24px, 4vw, 42px);
+  background:
+    linear-gradient(115deg, rgb(224 232 214 / 86%), rgb(250 247 234 / 70%)),
+    rgb(250 247 234 / 62%);
+}
+.trailhead h2,
+.field-notes h2,
+.evidence-lantern h2,
+.explorer-message h2 {
+  margin: 7px 0 10px;
+  font-size: clamp(25px, 3vw, 34px);
+}
+.trailhead-heading > p:last-child {
+  max-width: 620px;
+  margin: 0;
+  color: #596258;
+  line-height: 1.6;
+}
+.survey-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  margin: 30px 0 0;
+  overflow: hidden;
+  background: #b9ac93;
+  border: 1px solid #b9ac93;
+}
+.survey-stats > div {
+  min-width: 0;
+  padding: 18px;
+  background: #f4f0e1;
+}
+.survey-stats dt,
+.citation dt {
+  margin-bottom: 7px;
+  color: #687168;
+  font:
+    10px ui-monospace,
+    monospace;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.survey-stats dd,
+.citation dd {
+  margin: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.coverage-note {
+  display: flex;
+  gap: 14px;
+  margin-top: 20px;
+  padding: 16px 0 0;
+  border-top: 1px solid #c4b79d;
+}
+.coverage-note > span,
+.note-glyph {
+  color: #b05e24;
+}
+.coverage-note p {
+  margin: 5px 0 0;
+  color: #596258;
+  line-height: 1.5;
+}
+.omission-list {
+  display: grid;
+  gap: 7px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.omission-list li {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid #c7833a;
+  background: rgb(245 225 184 / 46%);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.omission-list code,
+.citation code,
+.survey-stats code {
+  color: #3d5f52;
+}
+.evidence-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.28fr);
+  gap: 20px;
+  align-items: start;
+}
+.field-notes,
+.evidence-lantern {
+  min-height: 540px;
+  padding: 25px;
+}
+.panel-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+}
+.panel-heading > span {
+  padding: 6px 8px;
+  border: 1px solid #b9ac93;
+  color: #657064;
+  font:
+    10px ui-monospace,
+    monospace;
+  white-space: nowrap;
+}
+.path-filter {
+  display: grid;
+  gap: 7px;
+  margin: 24px 0 12px;
+  color: #586158;
+  font-size: 12px;
+  font-weight: 700;
+}
+.path-filter input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #aa9b82;
+  border-radius: 3px;
+  background: #fffaf0;
+  color: #24332e;
+  font:
+    13px ui-monospace,
+    monospace;
+}
+.path-filter input:focus-visible {
+  outline: 3px solid #d38c35;
+  outline-offset: 2px;
+}
+.note-list {
+  display: grid;
+  gap: 8px;
+}
+.note-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+  padding: 13px;
+  border-color: #c8bca4;
+  text-align: left;
+}
+.note-item:hover,
+.note-item[data-selected="true"] {
+  border-color: #8b9c76;
+  background: #e3ebd8;
+}
+.note-item strong,
+.note-item small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.note-item strong {
+  font:
+    12px ui-monospace,
+    monospace;
+}
+.note-item small {
+  margin-top: 5px;
+  color: #647064;
+  font-size: 11px;
+}
+.citation {
+  display: grid;
+  grid-template-columns: 0.6fr 1.5fr 0.8fr;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid #c4b79d;
+  border-bottom: 1px solid #c4b79d;
+}
+.captured-label,
+.projection-note {
+  color: #657064;
+  font:
+    11px ui-monospace,
+    monospace;
+}
+.evidence-lantern pre {
+  max-height: 440px;
+  margin: 12px 0 0;
+  padding: 18px;
+  overflow: auto;
+  border: 1px solid #34463b;
+  border-radius: 3px;
+  background: #253a32;
+  color: #f2eedc;
+  font:
+    13px / 1.65 ui-monospace,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.empty-state {
+  padding: 24px 2px;
+  color: #586158;
+  line-height: 1.55;
+}
+.empty-state p {
+  margin-bottom: 0;
+}
+.lantern-empty {
+  padding-top: 88px;
+}
+.explorer-message {
+  margin: 34px 0;
+  padding: 32px;
+}
+.error-message {
+  border-color: #b66a46;
+  background: #f6e7d8;
+}
+.error-message button {
+  margin-top: 10px;
+}
+@media (max-width: 760px) {
+  .explorer-hero,
+  .evidence-grid {
+    grid-template-columns: 1fr;
+  }
+  .explorer-hero {
+    padding-top: 54px;
+  }
+  .survey-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .field-notes,
+  .evidence-lantern {
+    min-height: 0;
+  }
+}
+@media (max-width: 460px) {
+  .survey-stats,
+  .citation {
+    grid-template-columns: 1fr;
+  }
+  .explorer-actions,
+  .trailhead,
+  .field-notes,
+  .evidence-lantern {
+    padding: 20px;
+  }
+}
