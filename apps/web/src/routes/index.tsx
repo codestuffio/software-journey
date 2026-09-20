@@ -107,10 +107,10 @@ function Home() {
           <span className="aside-mark" aria-hidden="true">
             ✦
           </span>
-          <strong>Scaffold ready</strong>
+          <strong>First survey ready</strong>
           <p>
-            Repository analysis is not implemented yet. No repository has been
-            imported, and no AI provider is connected.
+            Local committed-HEAD analysis is ready from the CLI. No repository
+            content is uploaded, and no AI provider is connected.
           </p>
         </aside>
       </section>

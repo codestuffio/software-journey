@@ -1,5 +1,12 @@
 ## MODIFIED Requirements
 
+### Requirement: TanStack application
+The web application SHALL use TanStack Start and TanStack Router with Vite and SHALL NOT use Next.js.
+
+#### Scenario: Contributor starts development
+- **WHEN** the contributor runs `pnpm dev`
+- **THEN** a React web shell is available locally and identifies the committed-HEAD local analysis boundary
+
 ### Requirement: Honest scaffold interfaces
 The CLI SHALL provide help for implemented commands and SHALL reject unsupported commands without pretending they completed.
 

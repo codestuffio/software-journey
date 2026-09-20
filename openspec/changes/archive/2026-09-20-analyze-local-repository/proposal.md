@@ -4,6 +4,10 @@
 
 Guided onboarding needs reliable evidence before it can explain a project. The first slice should inventory a local repository, its documentation, and a bounded history without requiring a model or running the target project's code.
 
+## Roadmap
+
+Advances [`docs/roadmap.md` → R1](../../../docs/roadmap.md): local repository evidence. The roadmap owns this milestone's relationship to later explorer, workflow, and agent-retrieval work; this change owns the bounded evidence pipeline only.
+
 ## What Changes
 
 - Add a CLI analysis command for a local Git checkout at committed HEAD.
