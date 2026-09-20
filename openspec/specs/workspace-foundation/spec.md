@@ -18,14 +18,14 @@ The web application SHALL use TanStack Start and TanStack Router with Vite and S
 
 #### Scenario: Contributor starts development
 - **WHEN** the contributor runs `pnpm dev`
-- **THEN** a React web shell is available locally and identifies repository analysis as not yet implemented
+- **THEN** a React web shell is available locally and identifies the committed-HEAD local analysis boundary
 
 ### Requirement: Honest scaffold interfaces
-The CLI SHALL provide setup guidance and SHALL reject unsupported commands without pretending to analyze a repository.
+The CLI SHALL provide help for implemented commands and SHALL reject unsupported commands without pretending they completed.
 
 #### Scenario: User asks for help
 - **WHEN** the CLI runs with no arguments or `--help`
-- **THEN** it exits successfully and states that analysis is not implemented
+- **THEN** it exits successfully and describes the implemented local analysis command and its limits
 
 #### Scenario: User requests an unavailable command
 - **WHEN** the CLI receives an unsupported command

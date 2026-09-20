@@ -1,5 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -16,6 +25,13 @@ const temporaryDirectories: string[] = [];
 
 function git(cwd: string, args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+}
+
+function gitWithoutHelpers(cwd: string, args: string[]): string {
+  return execFileSync("git", ["-c", "core.fsmonitor=false", ...args], {
+    cwd,
+    encoding: "utf8",
+  }).trim();
 }
 
 async function createFixture(): Promise<string> {
@@ -193,5 +209,55 @@ describe("local repository analysis", () => {
     await expect(
       readFile(join(outputDirectory, "snapshot.json")),
     ).rejects.toThrow();
+  });
+
+  it("does not execute configured Git helpers, contact remotes, or alter the checkout", async () => {
+    const repository = await createFixture();
+    const outputDirectory = `${repository}-snapshot`;
+    const marker = join(repository, "fsmonitor-ran");
+    const helper = join(repository, "fsmonitor-helper.sh");
+    await writeFile(helper, `#!/bin/sh\ntouch ${marker}\n`, "utf8");
+    await chmod(helper, 0o755);
+    git(repository, ["config", "core.fsmonitor", helper]);
+    const server = createServer();
+    let connections = 0;
+    server.on("connection", () => {
+      connections++;
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Test server did not bind.");
+    }
+    git(repository, [
+      "remote",
+      "add",
+      "origin",
+      `git://127.0.0.1:${address.port}/fixture`,
+    ]);
+    const headBefore = gitWithoutHelpers(repository, ["rev-parse", "HEAD"]);
+    const statusBefore = gitWithoutHelpers(repository, [
+      "status",
+      "--porcelain",
+    ]);
+
+    try {
+      await analyzeRepository({ repositoryPath: repository, outputDirectory });
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+
+    expect(gitWithoutHelpers(repository, ["rev-parse", "HEAD"])).toBe(
+      headBefore,
+    );
+    expect(gitWithoutHelpers(repository, ["status", "--porcelain"])).toBe(
+      statusBefore,
+    );
+    await expect(access(marker)).rejects.toThrow();
+    expect(connections).toBe(0);
   });
 });

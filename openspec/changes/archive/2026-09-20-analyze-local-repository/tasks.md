@@ -14,6 +14,6 @@
 ## 3. CLI and verification
 
 - [x] 3.1 Add the analysis command and actionable error and coverage output; verify help describes only implemented behavior and unsupported commands fail clearly.
-- [ ] 3.2 Add integration tests proving repository immutability, no script or hook execution, no network use, stable content identities, and expected omissions across synthetic fixtures.
+- [x] 3.2 Add integration tests proving repository immutability, no script or hook execution, no network use, stable content identities, and expected omissions across synthetic fixtures.
 - [x] 3.3 Analyze a local OpenSpec checkout at a recorded SHA; manually resolve sampled documentation and history citations and record the acceptance evidence.
-- [ ] 3.4 Update contributor documentation, run `pnpm verify`, reconcile delivered capability specs, and archive only after all acceptance evidence is recorded.
+- [x] 3.4 Update contributor documentation, run `pnpm verify`, reconcile delivered capability specs, and archive only after all acceptance evidence is recorded.

@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Repository analysis
+
+## Purpose
+
+Provide a bounded, read-only local Git evidence snapshot that preserves traceable repository facts, documentation, history, and explicit coverage for later learning tools.
+
+## Requirements
 
 ### Requirement: Local committed snapshot
 The analyzer SHALL read an explicitly selected local Git checkout at committed HEAD and SHALL NOT modify or execute the target repository.
