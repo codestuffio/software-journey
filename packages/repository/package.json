@@ -1,5 +1,5 @@
 {
-  "name": "@software-journey/contracts",
+  "name": "@software-journey/repository",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,10 +14,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "zod": "4.6.5"
+    "@software-journey/contracts": "workspace:*"
   },
   "devDependencies": {
     "@software-journey/typescript-config": "workspace:*",
+    "@types/node": "22.20.3",
     "typescript": "5.9.3"
   }
 }

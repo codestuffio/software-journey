@@ -15,7 +15,8 @@
     "typecheck": "turbo run typecheck",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "test": "pnpm build && node --test tests/smoke.test.mjs",
+    "test": "pnpm build && vitest run tests/*.test.ts && node --test tests/smoke.test.mjs",
+    "test:e2e": "playwright test",
     "spec": "openspec",
     "spec:validate": "openspec validate --all --strict --no-interactive",
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm spec:validate",
@@ -24,7 +25,9 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
     "@fission-ai/openspec": "1.13.1",
+    "@playwright/test": "1.58.2",
     "turbo": "2.11.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "4.1.0"
   }
 }

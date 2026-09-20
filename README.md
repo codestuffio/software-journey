@@ -2,7 +2,7 @@
 
 Understand a repository through its code, documentation, and history. The planned application turns that evidence into developer onboarding, an interactive reference, and focused context for AI agents.
 
-**Current state:** runnable scaffold and specifications. Repository analysis and tutorial generation are not implemented yet.
+**Current state:** local committed-HEAD repository snapshots are available from the CLI. The browser explorer and tutorial generation remain planned.
 
 ## Start locally
 
@@ -18,19 +18,33 @@ Open [localhost:3000](http://localhost:3000). No credentials or environment file
 ```sh
 pnpm cli --help
 pnpm verify
+pnpm test:e2e
 ```
 
-`verify` runs Biome, TypeScript, production builds, CLI/HTTP smoke tests, and strict OpenSpec validation. Smoke tests start a temporary local server and stop it afterward. For a production-build preview, run `pnpm build` followed by `HOST=127.0.0.1 pnpm --filter @software-journey/web start`.
+`verify` runs Biome, TypeScript, production builds, Vitest unit tests, CLI/HTTP smoke tests, and strict OpenSpec validation. `test:e2e` runs the Playwright browser suite. Smoke tests start a temporary local server and stop it afterward. For a production-build preview, run `pnpm build` followed by `HOST=127.0.0.1 pnpm --filter @software-journey/web start`.
+
+## Analyze a local checkout
+
+The first MVP reads committed `HEAD` only. It inventories tracked files, extracts bounded Markdown documentation, records recent history and omissions, validates the snapshot with Zod, and writes it atomically outside the target checkout.
+
+```sh
+pnpm build
+node apps/cli/dist/index.js analyze \
+  --repository /Users/you/src/project \
+  --output /Users/you/.software-journey/project-snapshot
+```
+
+The output is local JSON, not sanitized content. It never executes repository code, Git hooks, or source-text instructions; it does not fetch or upload repository content.
 
 ## Workspace
 
 | Location | Responsibility |
 | --- | --- |
 | `apps/web` | React application using TanStack Start, Router, and Vite |
-| `apps/cli` | Node entry point for future local repository analysis |
-| `packages/contracts` | Shared source-reference types and audience vocabulary |
+| `apps/cli` | Node entry point for local repository analysis |
+| `packages/contracts` | Zod-validated snapshot contract and shared vocabulary |
 | `packages/typescript-config` | Shared strict TypeScript configuration |
-| `packages/repository` | Reserved analysis boundary, documentation only for now |
+| `packages/repository` | Read-only Git and filesystem analysis boundary |
 | `packages/knowledge` | Reserved retrieval/generation boundary, documentation only for now |
 | `openspec/specs` | Delivered capability specifications |
 | `openspec/changes` | Proposed changes and implementation tasks |
