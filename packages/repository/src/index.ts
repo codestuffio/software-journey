@@ -1,0 +1,673 @@
+import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { constants as fileSystemConstants } from "node:fs";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { dirname, relative, resolve } from "node:path";
+
+import {
+  type CommitMetadata,
+  type DocumentationExtract,
+  type InventoryEntry,
+  type Omission,
+  type Snapshot,
+  validateSnapshotForWrite,
+} from "@software-journey/contracts";
+
+export const snapshotLimits = {
+  inventoryEntries: 10_000,
+  documentBytes: 512 * 1024,
+  totalDocumentBytes: 20 * 1024 * 1024,
+  commits: 200,
+  timeoutMs: 60_000,
+} as const;
+
+export class RepositoryAnalysisError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+  ) {
+    super(message);
+    this.name = "RepositoryAnalysisError";
+  }
+}
+
+export interface AnalyzeRepositoryOptions {
+  repositoryPath: string;
+  outputDirectory: string;
+  signal?: AbortSignal;
+}
+
+interface GitResult {
+  stdout: Buffer;
+  stderr: string;
+}
+
+function contentIdentity(value: unknown): `sha256:${string}` {
+  const canonical = JSON.stringify(value, (_, nestedValue) => {
+    if (
+      nestedValue &&
+      typeof nestedValue === "object" &&
+      !Array.isArray(nestedValue)
+    ) {
+      return Object.fromEntries(
+        Object.entries(nestedValue).sort(([left], [right]) =>
+          left.localeCompare(right),
+        ),
+      );
+    }
+    return nestedValue;
+  });
+  return `sha256:${createHash("sha256").update(canonical).digest("hex")}`;
+}
+
+function safelyDecodePath(value: Buffer): {
+  path: string | null;
+  reason: "invalid-path-encoding" | "unsafe-path-character";
+} {
+  try {
+    const decoded = new TextDecoder("utf-8", { fatal: true }).decode(value);
+    if (!Buffer.from(decoded).equals(value)) {
+      return { path: null, reason: "invalid-path-encoding" };
+    }
+    if (
+      decoded.length === 0 ||
+      decoded.includes("\\") ||
+      Array.from(decoded).some((character) => {
+        const codePoint = character.codePointAt(0);
+        return (
+          codePoint !== undefined &&
+          (codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f))
+        );
+      })
+    ) {
+      return { path: null, reason: "unsafe-path-character" };
+    }
+    return { path: decoded, reason: "unsafe-path-character" };
+  } catch {
+    return { path: null, reason: "invalid-path-encoding" };
+  }
+}
+
+function isSafetyExcluded(path: string): boolean {
+  const segments = path.toLowerCase().split("/");
+  const excludedSegments = new Set([
+    "node_modules",
+    "vendor",
+    "dist",
+    "build",
+    "coverage",
+    ".next",
+    ".turbo",
+    "target",
+    "out",
+    "generated",
+  ]);
+  if (segments.some((segment) => excludedSegments.has(segment))) return true;
+
+  const name = segments.at(-1) ?? "";
+  return (
+    name === ".env" ||
+    name.startsWith(".env.") ||
+    name === ".npmrc" ||
+    name === "id_rsa" ||
+    name === "id_ed25519" ||
+    name.includes("credential") ||
+    name.includes("secret") ||
+    name.endsWith(".pem") ||
+    name.endsWith(".key")
+  );
+}
+
+function isDocumentationPath(path: string): boolean {
+  const name = path.toLowerCase();
+  return name === "readme" || name.endsWith(".md") || name.endsWith(".mdx");
+}
+
+async function runGit(
+  repositoryPath: string,
+  args: string[],
+  signal?: AbortSignal,
+  maximumBytes?: number,
+): Promise<GitResult & { exceededLimit: boolean }> {
+  if (signal?.aborted) {
+    throw new RepositoryAnalysisError("Analysis was canceled.", "canceled");
+  }
+  return new Promise((resolveResult, reject) => {
+    const child = spawn(
+      "git",
+      [
+        "--no-optional-locks",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "-c",
+        "diff.external=",
+        "-C",
+        repositoryPath,
+        ...args,
+      ],
+      {
+        env: {
+          ...process.env,
+          GIT_ATTR_NOSYSTEM: "1",
+          GIT_CONFIG_GLOBAL: "/dev/null",
+          GIT_CONFIG_NOSYSTEM: "1",
+          GIT_TERMINAL_PROMPT: "0",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    const chunks: Buffer[] = [];
+    let received = 0;
+    let stderr = "";
+    let exceededLimit = false;
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+    }, snapshotLimits.timeoutMs);
+    const onAbort = () => child.kill("SIGTERM");
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      received += chunk.length;
+      if (maximumBytes !== undefined && received > maximumBytes) {
+        exceededLimit = true;
+        child.kill("SIGTERM");
+        return;
+      }
+      chunks.push(chunk);
+    });
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", onAbort);
+      reject(new RepositoryAnalysisError(error.message, "git-unavailable"));
+    });
+    child.on("close", (code, childSignal) => {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", onAbort);
+      if (signal?.aborted) {
+        reject(
+          new RepositoryAnalysisError("Analysis was canceled.", "canceled"),
+        );
+        return;
+      }
+      if (exceededLimit) {
+        resolveResult({
+          stdout: Buffer.concat(chunks),
+          stderr,
+          exceededLimit: true,
+        });
+        return;
+      }
+      if (childSignal === "SIGTERM") {
+        reject(
+          new RepositoryAnalysisError(
+            "Analysis exceeded its 60-second timeout.",
+            "timeout",
+          ),
+        );
+        return;
+      }
+      if (code !== 0) {
+        reject(
+          new RepositoryAnalysisError(
+            stderr.trim() || `Git exited with status ${code ?? "unknown"}.`,
+            "git-failed",
+          ),
+        );
+        return;
+      }
+      resolveResult({
+        stdout: Buffer.concat(chunks),
+        stderr,
+        exceededLimit: false,
+      });
+    });
+  });
+}
+
+async function gitText(
+  repositoryPath: string,
+  args: string[],
+  signal?: AbortSignal,
+): Promise<string> {
+  const result = await runGit(repositoryPath, args, signal);
+  return result.stdout.toString("utf8").trim();
+}
+
+function outputIsInsideRepository(
+  repositoryPath: string,
+  outputDirectory: string,
+): boolean {
+  const relation = relative(repositoryPath, outputDirectory);
+  return (
+    relation === "" || (relation !== ".." && !relation.startsWith(`..${"/"}`))
+  );
+}
+
+async function assertUsableCheckout(
+  repositoryPath: string,
+  outputDirectory: string,
+  signal?: AbortSignal,
+): Promise<{ repositoryPath: string; headCommit: string; shallow: boolean }> {
+  const resolvedRepository = resolve(repositoryPath);
+  const resolvedOutput = resolve(outputDirectory);
+  try {
+    await access(resolvedRepository, fileSystemConstants.R_OK);
+  } catch {
+    throw new RepositoryAnalysisError(
+      "Repository path is not readable.",
+      "invalid-path",
+    );
+  }
+  if (outputIsInsideRepository(resolvedRepository, resolvedOutput)) {
+    throw new RepositoryAnalysisError(
+      "Output directory must be outside the target repository.",
+      "output-inside-repository",
+    );
+  }
+  const isRepository = await gitText(
+    resolvedRepository,
+    ["rev-parse", "--is-inside-work-tree"],
+    signal,
+  );
+  if (isRepository !== "true") {
+    throw new RepositoryAnalysisError(
+      "Path is not a Git working tree.",
+      "not-repository",
+    );
+  }
+  let headCommit: string;
+  try {
+    headCommit = await gitText(
+      resolvedRepository,
+      ["rev-parse", "--verify", "HEAD"],
+      signal,
+    );
+  } catch (error) {
+    if (
+      error instanceof RepositoryAnalysisError &&
+      error.code === "git-failed"
+    ) {
+      throw new RepositoryAnalysisError(
+        "Repository has no committed HEAD.",
+        "no-commits",
+      );
+    }
+    throw error;
+  }
+  const shallow =
+    (await gitText(
+      resolvedRepository,
+      ["rev-parse", "--is-shallow-repository"],
+      signal,
+    )) === "true";
+  return { repositoryPath: resolvedRepository, headCommit, shallow };
+}
+
+async function collectInventory(
+  repositoryPath: string,
+  signal?: AbortSignal,
+): Promise<{ entries: InventoryEntry[]; omissions: Omission[] }> {
+  const result = await runGit(
+    repositoryPath,
+    ["ls-tree", "-rz", "HEAD"],
+    signal,
+  );
+  const entries: InventoryEntry[] = [];
+  const omissions: Omission[] = [];
+  for (const record of result.stdout
+    .subarray()
+    .toString("binary")
+    .split("\0")) {
+    if (!record) continue;
+    const tabIndex = record.indexOf("\t");
+    const descriptor = record.slice(0, tabIndex).split(" ");
+    const rawPath = Buffer.from(record.slice(tabIndex + 1), "binary");
+    const decodedPath = safelyDecodePath(rawPath);
+    if (!decodedPath.path) {
+      omissions.push({
+        reason: decodedPath.reason,
+        path: null,
+        detail: "Git path could not be safely decoded.",
+      });
+      continue;
+    }
+    const path = decodedPath.path;
+    const [mode, type, objectId] = descriptor;
+    if (mode === "120000") {
+      omissions.push({
+        reason: "symlink",
+        path,
+        detail: "Symlink content is not read.",
+      });
+      continue;
+    }
+    if (mode === "160000" || type === "commit") {
+      omissions.push({
+        reason: "submodule",
+        path,
+        detail: "Submodule content is not read.",
+      });
+      continue;
+    }
+    if (isSafetyExcluded(path)) {
+      omissions.push({
+        reason: "default-exclusion",
+        path,
+        detail: "Path matches a built-in safety exclusion.",
+      });
+      continue;
+    }
+    if (entries.length >= snapshotLimits.inventoryEntries) {
+      omissions.push({
+        reason: "inventory-limit",
+        path,
+        detail: "Inventory entry limit reached.",
+      });
+      break;
+    }
+    if (type === "blob" && objectId) {
+      entries.push({
+        path,
+        objectId,
+        mode: mode === "100755" ? "executable" : "file",
+      });
+    }
+  }
+  return { entries, omissions };
+}
+
+async function collectDocumentation(
+  repositoryPath: string,
+  repositoryId: string,
+  headCommit: string,
+  inventory: InventoryEntry[],
+  priorOmissions: Omission[],
+  signal?: AbortSignal,
+): Promise<{
+  extracts: DocumentationExtract[];
+  omissions: Omission[];
+  extractedBytes: number;
+  eligibleFiles: number;
+}> {
+  const omissions = [...priorOmissions];
+  const extracts: DocumentationExtract[] = [];
+  let extractedBytes = 0;
+  let eligibleFiles = 0;
+  for (const entry of inventory) {
+    if (!isDocumentationPath(entry.path)) continue;
+    eligibleFiles++;
+    const blob = await runGit(
+      repositoryPath,
+      ["cat-file", "blob", entry.objectId],
+      signal,
+      snapshotLimits.documentBytes,
+    );
+    if (blob.exceededLimit) {
+      omissions.push({
+        reason: "per-file-byte-limit",
+        path: entry.path,
+        detail: "Documentation file exceeds the per-file byte limit.",
+      });
+      continue;
+    }
+    if (blob.stdout.includes(0)) {
+      omissions.push({
+        reason: "binary",
+        path: entry.path,
+        detail: "Documentation candidate contains a NUL byte.",
+      });
+      continue;
+    }
+    if (
+      extractedBytes + blob.stdout.length >
+      snapshotLimits.totalDocumentBytes
+    ) {
+      omissions.push({
+        reason: "total-byte-limit",
+        path: entry.path,
+        detail: "Total documentation byte limit reached.",
+      });
+      break;
+    }
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(blob.stdout);
+    } catch {
+      omissions.push({
+        reason: "binary",
+        path: entry.path,
+        detail: "Documentation candidate is not UTF-8 text.",
+      });
+      continue;
+    }
+    if (!text) continue;
+    extractedBytes += blob.stdout.length;
+    const source = {
+      repositoryId,
+      commitSha: headCommit,
+      path: entry.path,
+      lines: { start: 1, end: text.split("\n").length },
+    };
+    extracts.push({
+      contentId: contentIdentity({ source, text }),
+      source,
+      text,
+    });
+  }
+  return { extracts, omissions, extractedBytes, eligibleFiles };
+}
+
+async function collectHistory(
+  repositoryPath: string,
+  shallow: boolean,
+  signal?: AbortSignal,
+): Promise<{
+  commits: CommitMetadata[];
+  completeness: "complete" | "shallow" | "limited" | "unavailable";
+}> {
+  const result = await runGit(
+    repositoryPath,
+    [
+      "log",
+      `-n${snapshotLimits.commits}`,
+      "--format=%H%x00%P%x00%aI%x00%s%x00",
+      "-z",
+      "HEAD",
+    ],
+    signal,
+  );
+  const values = result.stdout.toString("utf8").split("\0").filter(Boolean);
+  const commits: CommitMetadata[] = [];
+  for (let index = 0; index + 3 < values.length; index += 4) {
+    const sha = values[index];
+    const parents = values[index + 1];
+    const authoredAt = values[index + 2];
+    const subject = values[index + 3];
+    if (!sha || parents === undefined || !authoredAt || subject === undefined)
+      continue;
+    commits.push({
+      sha,
+      parentShas: parents ? parents.split(" ") : [],
+      authoredAt,
+      subject,
+    });
+  }
+  return {
+    commits,
+    completeness: shallow
+      ? "shallow"
+      : commits.length === snapshotLimits.commits
+        ? "limited"
+        : "complete",
+  };
+}
+
+async function collectWorkingTreeOmissions(
+  repositoryPath: string,
+  signal?: AbortSignal,
+): Promise<Omission[]> {
+  const result = await runGit(
+    repositoryPath,
+    ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+    signal,
+  );
+  const omissions: Omission[] = [];
+  for (const record of result.stdout.toString("binary").split("\0")) {
+    if (!record || record.length < 4) continue;
+    const path = safelyDecodePath(Buffer.from(record.slice(3), "binary")).path;
+    omissions.push({
+      reason: record.startsWith("??") ? "untracked-worktree" : "dirty-worktree",
+      path,
+      detail: "Working-tree content is excluded from committed-HEAD analysis.",
+    });
+  }
+  return omissions;
+}
+
+export async function analyzeRepository(
+  options: AnalyzeRepositoryOptions,
+): Promise<Snapshot> {
+  const startedAt = new Date().toISOString();
+  const checkout = await assertUsableCheckout(
+    options.repositoryPath,
+    options.outputDirectory,
+    options.signal,
+  );
+  const treeId = await gitText(
+    checkout.repositoryPath,
+    ["rev-parse", "HEAD^{tree}"],
+    options.signal,
+  );
+  const repositoryId = contentIdentity({
+    headCommit: checkout.headCommit,
+    treeId,
+  });
+  const { entries, omissions: inventoryOmissions } = await collectInventory(
+    checkout.repositoryPath,
+    options.signal,
+  );
+  const documentation = await collectDocumentation(
+    checkout.repositoryPath,
+    repositoryId,
+    checkout.headCommit,
+    entries,
+    inventoryOmissions,
+    options.signal,
+  );
+  const history = await collectHistory(
+    checkout.repositoryPath,
+    checkout.shallow,
+    options.signal,
+  );
+  const workingTreeOmissions = await collectWorkingTreeOmissions(
+    checkout.repositoryPath,
+    options.signal,
+  );
+  const completedAt = new Date().toISOString();
+  const snapshot = {
+    schemaVersion: 1 as const,
+    contentIdentity: contentIdentity({
+      repository: { id: repositoryId, headCommit: checkout.headCommit },
+      inventory: entries,
+      documentation: documentation.extracts,
+      history: history.commits,
+      coverage: {
+        inventory: {
+          discoveredEntries: entries.length + inventoryOmissions.length,
+          recordedEntries: entries.length,
+        },
+        documentation: {
+          eligibleFiles: documentation.eligibleFiles,
+          extractedFiles: documentation.extracts.length,
+          extractedBytes: documentation.extractedBytes,
+        },
+        history: {
+          requestedCommits: snapshotLimits.commits,
+          recordedCommits: history.commits.length,
+          completeness: history.completeness,
+        },
+        omissions: [...documentation.omissions, ...workingTreeOmissions],
+      },
+    }),
+    repository: { id: repositoryId, headCommit: checkout.headCommit },
+    inventory: entries,
+    documentation: documentation.extracts,
+    history: history.commits,
+    coverage: {
+      inventory: {
+        discoveredEntries: entries.length + inventoryOmissions.length,
+        recordedEntries: entries.length,
+      },
+      documentation: {
+        eligibleFiles: documentation.eligibleFiles,
+        extractedFiles: documentation.extracts.length,
+        extractedBytes: documentation.extractedBytes,
+      },
+      history: {
+        requestedCommits: snapshotLimits.commits,
+        recordedCommits: history.commits.length,
+        completeness: history.completeness,
+      },
+      omissions: [...documentation.omissions, ...workingTreeOmissions],
+    },
+    run: {
+      analyzerVersion: "0.0.0",
+      startedAt,
+      completedAt,
+      durationMs: Math.max(0, Date.parse(completedAt) - Date.parse(startedAt)),
+    },
+  };
+  return validateSnapshotForWrite(snapshot);
+}
+
+export async function writeSnapshot(
+  repositoryPath: string,
+  outputDirectory: string,
+  snapshot: unknown,
+): Promise<string> {
+  const validated = validateSnapshotForWrite(snapshot);
+  const resolvedRepository = resolve(repositoryPath);
+  const resolvedOutput = resolve(outputDirectory);
+  if (outputIsInsideRepository(resolvedRepository, resolvedOutput)) {
+    throw new RepositoryAnalysisError(
+      "Output directory must be outside the target repository.",
+      "output-inside-repository",
+    );
+  }
+  try {
+    await access(resolvedOutput);
+    throw new RepositoryAnalysisError(
+      "Output directory already exists.",
+      "output-exists",
+    );
+  } catch (error) {
+    if (error instanceof RepositoryAnalysisError) throw error;
+  }
+  await mkdir(dirname(resolvedOutput), { recursive: true });
+  const temporaryDirectory = await mkdtemp(`${resolvedOutput}.tmp-`);
+  try {
+    await writeFile(
+      `${temporaryDirectory}/snapshot.json`,
+      `${JSON.stringify(validated, null, 2)}\n`,
+      "utf8",
+    );
+    await rename(temporaryDirectory, resolvedOutput);
+    return `${resolvedOutput}/snapshot.json`;
+  } catch (error) {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+    throw error;
+  }
+}

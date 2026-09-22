@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Repository analysis
+
+## Purpose
+
+Provide a bounded, read-only local Git evidence snapshot that preserves traceable repository facts, documentation, history, and explicit coverage for later learning tools.
+
+## Requirements
 
 ### Requirement: Local committed snapshot
 The analyzer SHALL read an explicitly selected local Git checkout at committed HEAD and SHALL NOT modify or execute the target repository.
@@ -25,6 +31,10 @@ The analyzer SHALL enforce file-count, per-file byte, total-byte, history-count,
 #### Scenario: Unsafe or unsupported files are encountered
 - **WHEN** an entry is a symlink, binary, submodule, credential-like path, or excluded generated/vendor content
 - **THEN** its content is not extracted and the omission reason is recorded without following it outside the repository
+
+#### Scenario: A tracked path cannot be safely represented
+- **WHEN** Git reports a path whose bytes are not strict UTF-8 or whose decoded name contains a Unicode control character
+- **THEN** the analyzer omits it with `invalid-path-encoding` or `unsafe-path-character` and continues without interpreting the path as a command or display string
 
 ### Requirement: Traceable documentation and history
 The analyzer SHALL attach revision/path references to documentation and SHALL distinguish complete from unavailable or truncated history.

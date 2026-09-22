@@ -18,11 +18,14 @@ test("compiled CLI reports its limits and rejects unavailable commands", () => {
       },
     );
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /analysis is not implemented/);
+    assert.match(
+      result.stdout,
+      /analyze --repository <path> --output <directory>/,
+    );
   }
   const result = spawnSync(
     process.execPath,
-    ["apps/cli/dist/index.js", "analyze"],
+    ["apps/cli/dist/index.js", "unknown"],
     {
       cwd: root,
       encoding: "utf8",
@@ -73,7 +76,7 @@ test("production web server renders the shell and serves its assets", {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /Software Journey/);
-  assert.match(html, /Repository analysis is not implemented yet/);
+  assert.match(html, /Local committed-HEAD analysis is ready from the CLI/);
   const assets = [...html.matchAll(/(?:href|src)="([^" ]+\.(?:css|js))"/g)].map(
     (match) => match[1],
   );
