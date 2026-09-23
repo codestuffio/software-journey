@@ -18,8 +18,10 @@ import {
   analyzeRepository,
   type RepositoryAnalysisError,
   snapshotLimits,
+  traceWorkflow,
   writeSnapshot,
 } from "../packages/repository/src/index.ts";
+import { openSpecNewChangeWorkflow } from "../packages/repository/src/workflow-catalog.ts";
 
 const temporaryDirectories: string[] = [];
 
@@ -84,6 +86,75 @@ afterEach(async () => {
 });
 
 describe("local repository analysis", () => {
+  it("keeps the reviewed OpenSpec trail limited to its declared evidence", () => {
+    expect(openSpecNewChangeWorkflow.commitSha).toBe(
+      "bae58cf61479986431bb798acbe5a688a591c18c",
+    );
+    expect(openSpecNewChangeWorkflow.steps.map((step) => step.kind)).toEqual([
+      "command",
+      "specification",
+      "implementation",
+      "test",
+      "history",
+    ]);
+    expect(openSpecNewChangeWorkflow.steps.map((step) => step.path)).toEqual([
+      "src/cli/index.ts",
+      "openspec/specs/change-creation/spec.md",
+      "src/commands/workflow/new-change.ts",
+      "test/cli-e2e/basic.test.ts",
+      undefined,
+    ]);
+  });
+
+  it("rejects a trace when the checkout does not match the reviewed revision", async () => {
+    const repository = await createFixture();
+    const snapshot = await analyzeRepository({
+      repositoryPath: repository,
+      outputDirectory: `${repository}-snapshot`,
+    });
+    snapshot.repository.id =
+      openSpecNewChangeWorkflow.repositoryId as typeof snapshot.repository.id;
+    snapshot.repository.headCommit = openSpecNewChangeWorkflow.commitSha;
+    await expect(
+      traceWorkflow({
+        repositoryPath: repository,
+        outputDirectory: `${repository}-trail`,
+        snapshot,
+        workflowId: openSpecNewChangeWorkflow.id,
+      }),
+    ).rejects.toMatchObject<Partial<RepositoryAnalysisError>>({
+      code: "checkout-mismatch",
+    });
+  });
+
+  it("does not create trace output when local collection is canceled", async () => {
+    const repository = await createFixture();
+    const snapshot = await analyzeRepository({
+      repositoryPath: repository,
+      outputDirectory: `${repository}-snapshot`,
+    });
+    snapshot.repository.id =
+      openSpecNewChangeWorkflow.repositoryId as typeof snapshot.repository.id;
+    snapshot.repository.headCommit = openSpecNewChangeWorkflow.commitSha;
+    const outputDirectory = `${repository}-trail`;
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      traceWorkflow({
+        repositoryPath: repository,
+        outputDirectory,
+        snapshot,
+        workflowId: openSpecNewChangeWorkflow.id,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject<Partial<RepositoryAnalysisError>>({
+      code: "canceled",
+    });
+    await expect(
+      readFile(join(outputDirectory, "workflow.json")),
+    ).rejects.toThrow();
+  });
+
   it("creates a committed-HEAD snapshot with explicit coverage and omissions", async () => {
     const repository = await createFixture();
     const outputDirectory = `${repository}-snapshot`;

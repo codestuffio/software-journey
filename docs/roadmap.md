@@ -13,7 +13,7 @@ Software Journey helps developers and AI agents understand a repository from evi
 
 | ID | Milestone | Outcome | Scope boundary | Depends on | Status | OpenSpec change |
 | --- | --- | --- | --- | --- | --- | --- |
-| R1 | Local repository evidence | A user can create a deterministic, bounded snapshot of a committed local checkout and see its coverage. | No model calls, remote cloning, code execution, or web explorer. | — | in progress | [`analyze-local-repository`](../openspec/changes/analyze-local-repository/) |
+| R1 | Local repository evidence | A user can create a deterministic, bounded snapshot of a committed local checkout and see its coverage. | No model calls, remote cloning, code execution, or web explorer. | — | complete | Archived 2026-09-20 |
 
 **Exit evidence:** synthetic repositories demonstrate exclusions, source references, bounded history, failure handling, and deterministic output. A pinned OpenSpec checkout produces a snapshot with manually resolvable sample citations.
 
@@ -21,8 +21,8 @@ Software Journey helps developers and AI agents understand a repository from evi
 
 | ID | Milestone | Outcome | Scope boundary | Depends on | Status | OpenSpec change |
 | --- | --- | --- | --- | --- | --- | --- |
-| R2 | Snapshot explorer | A developer can open a local snapshot, browse repository and documentation evidence, and open cited paths. | No generated tutorial content or agent-facing protocol. | R1 | planned | — |
-| R3 | Workflow trail | A developer can follow one real workflow through entry point, specification, implementation, tests, and selected history. | One curated workflow per snapshot; no broad architecture inference claims. | R2 | planned | — |
+| R2 | Snapshot explorer | A developer can open a local snapshot, browse repository and documentation evidence, and inspect cited paths. | No generated tutorial content or agent-facing protocol. | R1 | complete | [`Archived 2026-09-20`](../openspec/changes/archive/2026-09-20-explore-local-snapshot/) |
+| R3 | Workflow trail | A developer can follow one real workflow through entry point, specification, implementation, tests, and selected history. | One curated workflow per snapshot; no broad architecture inference claims. | R2 | in progress | [`trace-openspec-change-workflow`](../openspec/changes/trace-openspec-change-workflow/) |
 | R4 | Evidence evaluation baseline | The project can measure citation validity and answer quality for fixed repository questions. | Evaluation harness and curated answers only; no provider integration required. | R1, R3 | planned | — |
 
 **Exit evidence:** the pinned OpenSpec demonstration supports a developer tracing one workflow in the interface. The evaluation set records expected answers and resolvable evidence at a fixed revision.

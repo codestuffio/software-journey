@@ -31,7 +31,7 @@ Code and documentation can disagree. Commit messages record author claims, not p
 | 3. Guided learning | Tutorial steps and deeper explanations, optionally assisted by a model | Each repository-specific factual claim is traceable; inferred claims are labeled; provider budget and cancellation work |
 | 4. Agent access | Versioned JSON context and bounded retrieval, then an MCP adapter if useful | Fixed tasks compare answer quality, tokens, tool calls, latency, and cost against direct repository exploration |
 
-Milestones 1-4 are proposed work, not implemented functionality. The first change under `openspec/changes/analyze-local-repository/` is intentionally limited to deterministic evidence collection.
+Milestones 1 and 2 establish implemented local evidence collection and browsing. Guided learning and agent access remain proposed work; the completed analysis and explorer slices intentionally stop before generating explanations or transmitting source content.
 
 ## First demonstration
 

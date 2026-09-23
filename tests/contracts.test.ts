@@ -1,6 +1,12 @@
 import { expect, test } from "vitest";
 
-import { validateSnapshotForWrite } from "../packages/contracts/src/index.ts";
+import {
+  createExplorerProjection,
+  createWorkflowExplorerProjection,
+  explorerLimits,
+  validateSnapshotForWrite,
+  validateWorkflowBundleForWrite,
+} from "../packages/contracts/src/index.ts";
 
 const sha = "a".repeat(40);
 const identity = `sha256:${"b".repeat(64)}`;
@@ -61,6 +67,47 @@ test("snapshot write validation accepts a traceable versioned snapshot", () => {
   expect(snapshot.documentation[0]?.source.lines?.start).toBe(1);
 });
 
+test("workflow bundles keep source evidence bounded and revision-pinned", () => {
+  const snapshot = validSnapshot();
+  const bundle = {
+    schemaVersion: 1,
+    contentIdentity: identity,
+    workflow: { id: "openspec-new-change", catalogVersion: "1" },
+    snapshot: {
+      contentIdentity: snapshot.contentIdentity,
+      repository: snapshot.repository,
+    },
+    collectedAt: "2026-09-20T00:00:01.000Z",
+    steps: [
+      {
+        id: "command",
+        kind: "command",
+        label: "Command entry",
+        evidence: {
+          type: "source",
+          contentId: identity,
+          source: snapshot.documentation[0].source,
+          text: "x".repeat(32_001),
+        },
+      },
+    ],
+    omissions: [],
+  };
+
+  expect(validateWorkflowBundleForWrite(bundle).workflow.id).toBe(
+    "openspec-new-change",
+  );
+  expect(
+    createWorkflowExplorerProjection(bundle).steps[0]?.evidence,
+  ).toMatchObject({
+    type: "source",
+    textTruncated: true,
+  });
+  expect(() =>
+    validateWorkflowBundleForWrite({ ...bundle, steps: [] }),
+  ).toThrow();
+});
+
 test("snapshot write validation rejects malformed persisted data", () => {
   const invalid = validSnapshot();
   invalid.documentation[0].source.lines = { start: 4, end: 2 };
@@ -73,4 +120,31 @@ test("snapshot write validation rejects unsafe paths", () => {
   invalid.inventory[0].path = "notes\nunsafe.md";
 
   expect(() => validateSnapshotForWrite(invalid)).toThrow();
+});
+
+test("explorer projection labels a bounded documentation view", () => {
+  const snapshot = validSnapshot();
+  snapshot.documentation = Array.from(
+    { length: explorerLimits.maximumDocumentationExtracts + 1 },
+    (_, index) => ({
+      ...snapshot.documentation[0],
+      contentId: `sha256:${index.toString(16).padStart(64, "0")}`,
+      source: {
+        ...snapshot.documentation[0].source,
+        path: `docs/note-${index}.md`,
+      },
+      text: "x".repeat(explorerLimits.maximumExtractTextCharacters + 1),
+    }),
+  );
+
+  const projection = createExplorerProjection(snapshot);
+
+  expect(projection.totalDocumentationExtracts).toBe(
+    explorerLimits.maximumDocumentationExtracts + 1,
+  );
+  expect(projection.documentation).toHaveLength(
+    explorerLimits.maximumDocumentationExtracts,
+  );
+  expect(projection.projectionTruncated).toBe(true);
+  expect(projection.documentation[0]?.textTruncated).toBe(true);
 });

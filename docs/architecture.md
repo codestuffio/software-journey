@@ -1,6 +1,6 @@
 # Architecture
 
-The current implementation contains a TanStack Start web shell, a help-only Node CLI, and a shared types package. Repository analysis and knowledge generation are documented boundaries awaiting implementation.
+The current implementation contains a TanStack Start local snapshot explorer, a Node CLI for read-only committed-HEAD analysis, and schema-validated shared contracts. Knowledge generation remains a documented boundary awaiting implementation.
 
 ## Target flow
 
@@ -18,15 +18,15 @@ The diagram describes the planned product, not current services.
 
 ## Boundaries
 
-`apps/web` owns the learning interface and its server handlers. TanStack Router owns navigation. Introduce Query for asynchronous server state, Table for large inventories, and Virtual for long source/history lists when the relevant feature arrives.
+`apps/web` owns the learning interface. A browser file-selection boundary validates a selected snapshot and exposes only a bounded projection; it never receives a repository checkout path. TanStack Router owns navigation. Introduce Query for asynchronous server state, Table for large inventories, and Virtual for long source/history lists when the relevant feature arrives.
 
-`apps/cli` will select a local checkout and run analysis. Long-running analysis should remain outside request/response handlers. Start with a single local process; move to a worker only when responsiveness and cancellation require it.
+`apps/cli` selects a local checkout and runs analysis. Long-running analysis remains outside request/response handlers. Start with a single local process; move to a worker only when responsiveness and cancellation require it.
 
 `packages/repository` will own Git and filesystem access, exclusions, size limits, history extraction, and stable evidence identifiers. It must not import UI or provider code.
 
 `packages/knowledge` will consume snapshots and produce learning resources and retrieval results. Generated artifacts need model/prompt version, snapshot identity, citations, cost, and coverage metadata. A local JSON store is the proposed first persistence format; SQLite is a later option if query patterns justify it.
 
-`packages/contracts` holds vocabulary shared between these boundaries. The existing types are preliminary compile-time contracts, not validated persisted schemas. Add runtime schemas with the first actual ingestion format.
+`packages/contracts` holds vocabulary and runtime schemas shared between these boundaries. Snapshot writes and browser explorer projections are validated and bounded before they are presented as evidence.
 
 ## Data rules for the first implementation
 

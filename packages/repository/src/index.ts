@@ -18,7 +18,10 @@ import {
   type Omission,
   type Snapshot,
   validateSnapshotForWrite,
+  validateWorkflowBundleForWrite,
+  type WorkflowBundle,
 } from "@software-journey/contracts";
+import { findWorkflowCatalogEntry } from "./workflow-catalog.js";
 
 export const snapshotLimits = {
   inventoryEntries: 10_000,
@@ -41,6 +44,14 @@ export class RepositoryAnalysisError extends Error {
 export interface AnalyzeRepositoryOptions {
   repositoryPath: string;
   outputDirectory: string;
+  signal?: AbortSignal;
+}
+
+export interface TraceWorkflowOptions {
+  repositoryPath: string;
+  outputDirectory: string;
+  snapshot: unknown;
+  workflowId: string;
   signal?: AbortSignal;
 }
 
@@ -445,7 +456,13 @@ async function collectDocumentation(
     let text: string;
     try {
       text = new TextDecoder("utf-8", { fatal: true }).decode(blob.stdout);
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof RepositoryAnalysisError &&
+        error.code === "canceled"
+      ) {
+        throw error;
+      }
       omissions.push({
         reason: "binary",
         path: entry.path,
@@ -666,6 +683,217 @@ export async function writeSnapshot(
     );
     await rename(temporaryDirectory, resolvedOutput);
     return `${resolvedOutput}/snapshot.json`;
+  } catch (error) {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+export async function traceWorkflow(
+  options: TraceWorkflowOptions,
+): Promise<WorkflowBundle> {
+  const snapshot = validateSnapshotForWrite(options.snapshot);
+  const catalog = findWorkflowCatalogEntry(options.workflowId);
+  if (!catalog) {
+    throw new RepositoryAnalysisError(
+      `Workflow '${options.workflowId}' is not supported.`,
+      "unsupported-workflow",
+    );
+  }
+  if (
+    snapshot.repository.id !== catalog.repositoryId ||
+    snapshot.repository.headCommit !== catalog.commitSha
+  ) {
+    throw new RepositoryAnalysisError(
+      "Snapshot does not match the workflow catalog's repository identity and revision.",
+      "snapshot-mismatch",
+    );
+  }
+  const checkout = await assertUsableCheckout(
+    options.repositoryPath,
+    options.outputDirectory,
+    options.signal,
+  );
+  const treeId = await gitText(
+    checkout.repositoryPath,
+    ["rev-parse", "HEAD^{tree}"],
+    options.signal,
+  );
+  const repositoryId = contentIdentity({
+    headCommit: checkout.headCommit,
+    treeId,
+  });
+  if (
+    checkout.headCommit !== catalog.commitSha ||
+    repositoryId !== catalog.repositoryId
+  ) {
+    throw new RepositoryAnalysisError(
+      "Checkout does not match the workflow catalog's repository identity and revision.",
+      "checkout-mismatch",
+    );
+  }
+
+  const omissions: Omission[] = [];
+  const steps: WorkflowBundle["steps"] = [];
+  for (const entry of catalog.steps) {
+    if (entry.kind === "history") {
+      const history = await collectHistory(
+        checkout.repositoryPath,
+        false,
+        options.signal,
+      );
+      const commit = history.commits.find(
+        (item) => item.sha === catalog.commitSha,
+      );
+      if (!commit) {
+        omissions.push({
+          reason: "missing-object",
+          path: null,
+          detail: "The catalogued revision was unavailable in local history.",
+        });
+        steps.push({
+          id: entry.id,
+          kind: entry.kind,
+          label: entry.label,
+          evidence: {
+            type: "unavailable",
+            reason: "Selected history is unavailable.",
+          },
+        });
+      } else {
+        steps.push({
+          id: entry.id,
+          kind: entry.kind,
+          label: entry.label,
+          evidence: { type: "history", commit },
+        });
+      }
+      continue;
+    }
+    const path = entry.path;
+    if (!path) continue;
+    try {
+      const objectId = await gitText(
+        checkout.repositoryPath,
+        ["rev-parse", `HEAD:${path}`],
+        options.signal,
+      );
+      const blob = await runGit(
+        checkout.repositoryPath,
+        ["cat-file", "blob", objectId],
+        options.signal,
+        256 * 1024,
+      );
+      if (blob.exceededLimit) {
+        omissions.push({
+          reason: "per-file-byte-limit",
+          path,
+          detail: "Workflow evidence exceeds the 256 KB per-file limit.",
+        });
+        steps.push({
+          id: entry.id,
+          kind: entry.kind,
+          label: entry.label,
+          evidence: {
+            type: "unavailable",
+            reason: "Evidence exceeded the local capture limit.",
+          },
+        });
+        continue;
+      }
+      if (blob.stdout.includes(0)) throw new Error("binary");
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(
+        blob.stdout,
+      );
+      if (!text) throw new Error("empty");
+      const source = {
+        repositoryId,
+        commitSha: checkout.headCommit,
+        path,
+        lines: { start: 1, end: text.split("\n").length },
+      };
+      steps.push({
+        id: entry.id,
+        kind: entry.kind,
+        label: entry.label,
+        evidence: {
+          type: "source",
+          contentId: contentIdentity({ source, text }),
+          source,
+          text,
+        },
+      });
+    } catch {
+      omissions.push({
+        reason: "missing-object",
+        path,
+        detail:
+          "The catalogued workflow evidence could not be read at the selected revision.",
+      });
+      steps.push({
+        id: entry.id,
+        kind: entry.kind,
+        label: entry.label,
+        evidence: {
+          type: "unavailable",
+          reason: "Evidence is unavailable at this revision.",
+        },
+      });
+    }
+  }
+  const bundle = validateWorkflowBundleForWrite({
+    schemaVersion: 1,
+    contentIdentity: contentIdentity({
+      workflow: catalog.id,
+      snapshot: snapshot.contentIdentity,
+      steps,
+      omissions,
+    }),
+    workflow: { id: catalog.id, catalogVersion: catalog.version },
+    snapshot: {
+      contentIdentity: snapshot.contentIdentity,
+      repository: snapshot.repository,
+    },
+    collectedAt: new Date().toISOString(),
+    steps,
+    omissions,
+  });
+  return bundle;
+}
+
+export async function writeWorkflowBundle(
+  repositoryPath: string,
+  outputDirectory: string,
+  bundle: unknown,
+): Promise<string> {
+  const validated = validateWorkflowBundleForWrite(bundle);
+  const resolvedRepository = resolve(repositoryPath);
+  const resolvedOutput = resolve(outputDirectory);
+  if (outputIsInsideRepository(resolvedRepository, resolvedOutput)) {
+    throw new RepositoryAnalysisError(
+      "Output directory must be outside the target repository.",
+      "output-inside-repository",
+    );
+  }
+  try {
+    await access(resolvedOutput);
+    throw new RepositoryAnalysisError(
+      "Output directory already exists.",
+      "output-exists",
+    );
+  } catch (error) {
+    if (error instanceof RepositoryAnalysisError) throw error;
+  }
+  await mkdir(dirname(resolvedOutput), { recursive: true });
+  const temporaryDirectory = await mkdtemp(`${resolvedOutput}.tmp-`);
+  try {
+    await writeFile(
+      `${temporaryDirectory}/workflow.json`,
+      `${JSON.stringify(validated, null, 2)}\n`,
+      "utf8",
+    );
+    await rename(temporaryDirectory, resolvedOutput);
+    return `${resolvedOutput}/workflow.json`;
   } catch (error) {
     await rm(temporaryDirectory, { recursive: true, force: true });
     throw error;
