@@ -1,12 +1,13 @@
 import {
   createExplorerProjection,
   type ExplorerProjection,
+  type WorkflowExplorerProjection,
 } from "@software-journey/contracts";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 
 import { demoSnapshot } from "../demo-snapshot";
-import { loadSelectedSnapshot } from "../snapshot-loader";
+import { loadSelectedSnapshot, loadSelectedWorkflow } from "../snapshot-loader";
 
 export const Route = createFileRoute("/")({
   ssr: "data-only",
@@ -39,6 +40,7 @@ function coverageLabel(projection: ExplorerProjection) {
 
 function Home() {
   const picker = useRef<HTMLInputElement>(null);
+  const workflowPicker = useRef<HTMLInputElement>(null);
   const [projection, setProjection] = useState<ExplorerProjection | null>(
     demoProjection,
   );
@@ -48,6 +50,11 @@ function Home() {
   const [selectedPath, setSelectedPath] = useState(
     demoProjection.documentation[0]?.source.path ?? null,
   );
+  const [workflow, setWorkflow] = useState<WorkflowExplorerProjection | null>(
+    null,
+  );
+  const [workflowError, setWorkflowError] = useState<string | null>(null);
+  const [selectedStep, setSelectedStep] = useState<string | null>(null);
 
   const visibleNotes = useMemo(() => {
     if (!projection) return [];
@@ -75,11 +82,37 @@ function Home() {
       setProjection(next);
       setSessionName(file.name);
       setSelectedPath(next.documentation[0]?.source.path ?? null);
+      setWorkflow(null);
+      setWorkflowError(null);
     } catch (cause) {
       setError(
         cause instanceof Error
           ? cause.message
           : "The snapshot could not be opened.",
+      );
+    }
+  }
+
+  async function selectWorkflow(file: File | undefined) {
+    if (!file || !projection) return;
+    setWorkflowError(null);
+    try {
+      const next = await loadSelectedWorkflow(file);
+      if (
+        next.snapshot.repository.id !== projection.repository.id ||
+        next.snapshot.repository.headCommit !== projection.repository.headCommit
+      ) {
+        throw new Error(
+          "This workflow bundle belongs to a different snapshot revision.",
+        );
+      }
+      setWorkflow(next);
+      setSelectedStep(next.steps[0]?.id ?? null);
+    } catch (cause) {
+      setWorkflowError(
+        cause instanceof Error
+          ? cause.message
+          : "The workflow could not be opened.",
       );
     }
   }
@@ -90,6 +123,9 @@ function Home() {
     setError(null);
     setFilter("");
     setSelectedPath(demoProjection.documentation[0]?.source.path ?? null);
+    setWorkflow(null);
+    setWorkflowError(null);
+    setSelectedStep(null);
   }
 
   return (
@@ -136,6 +172,22 @@ function Home() {
             onClick={() => picker.current?.click()}
           >
             Open a local snapshot <span aria-hidden="true">↗</span>
+          </button>
+          <input
+            ref={workflowPicker}
+            className="snapshot-picker"
+            type="file"
+            accept="application/json,.json"
+            aria-label="Choose a local workflow bundle JSON file"
+            onChange={(event) => void selectWorkflow(event.target.files?.[0])}
+          />
+          <button
+            className="sample-action"
+            type="button"
+            disabled={!projection}
+            onClick={() => workflowPicker.current?.click()}
+          >
+            Open a workflow trail
           </button>
           <p>
             Chosen files stay in this browser session. Nothing is sent to a
@@ -239,6 +291,92 @@ function Home() {
                 ))}
               </ul>
             ) : null}
+          </section>
+
+          <section className="workflow-trail" aria-labelledby="workflow-title">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">Mine route / curated workflow</p>
+                <h2 id="workflow-title">
+                  Follow one change from spark to proof.
+                </h2>
+              </div>
+              <span>
+                {workflow
+                  ? `${workflow.steps.length} steps recorded`
+                  : "Optional local bundle"}
+              </span>
+            </div>
+            {workflowError ? (
+              <p className="workflow-error" role="alert">
+                {workflowError}
+              </p>
+            ) : null}
+            {workflow ? (
+              <div className="workflow-layout">
+                <ol className="workflow-steps">
+                  {workflow.steps.map((step, index) => (
+                    <li key={step.id}>
+                      <button
+                        type="button"
+                        data-selected={selectedStep === step.id}
+                        onClick={() => setSelectedStep(step.id)}
+                      >
+                        <span>{index + 1}</span>
+                        <strong>{step.label}</strong>
+                        <small>{step.kind}</small>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+                {(() => {
+                  const step = workflow.steps.find(
+                    (item) => item.id === selectedStep,
+                  );
+                  if (!step) return null;
+                  const evidence = step.evidence;
+                  return (
+                    <article className="workflow-detail">
+                      <p className="eyebrow">{step.kind} / recorded evidence</p>
+                      <h3>{step.label}</h3>
+                      {evidence.type === "source" ? (
+                        <>
+                          <p>
+                            <code>{shortSha(evidence.source.commitSha)}</code> ·{" "}
+                            <code>{evidence.source.path}</code> · Lines{" "}
+                            {evidence.source.lines?.start}–
+                            {evidence.source.lines?.end}
+                          </p>
+                          <p className="captured-label">
+                            Captured text — display-only evidence
+                          </p>
+                          <pre>{evidence.text}</pre>
+                          {"textTruncated" in evidence &&
+                          evidence.textTruncated ? (
+                            <p className="projection-note">
+                              This local view is bounded.
+                            </p>
+                          ) : null}
+                        </>
+                      ) : evidence.type === "history" ? (
+                        <p>
+                          Recorded history metadata:{" "}
+                          <code>{shortSha(evidence.commit.sha)}</code> ·{" "}
+                          {evidence.commit.subject}
+                        </p>
+                      ) : (
+                        <p className="workflow-error">{evidence.reason}</p>
+                      )}
+                    </article>
+                  );
+                })()}
+              </div>
+            ) : (
+              <p className="workflow-empty">
+                Choose a workflow bundle after loading its matching snapshot.
+                The trail is curated evidence, not a generated explanation.
+              </p>
+            )}
           </section>
 
           <section className="evidence-grid" aria-labelledby="notes-title">

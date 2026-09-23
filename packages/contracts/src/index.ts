@@ -169,6 +169,114 @@ export const explorerProjectionSchema = z
 
 export type ExplorerProjection = z.infer<typeof explorerProjectionSchema>;
 
+export const workflowStepKindSchema = z.enum([
+  "command",
+  "specification",
+  "implementation",
+  "test",
+  "history",
+]);
+
+export const workflowEvidenceSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("source"),
+      contentId: contentIdentitySchema,
+      source: sourceReferenceSchema,
+      text: z.string().min(1),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("history"),
+      commit: commitMetadataSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("unavailable"),
+      reason: z.string().min(1),
+    })
+    .strict(),
+]);
+
+export const workflowStepSchema = z
+  .object({
+    id: z.string().min(1),
+    kind: workflowStepKindSchema,
+    label: z.string().min(1),
+    evidence: workflowEvidenceSchema,
+  })
+  .strict();
+
+export const workflowBundleSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    contentIdentity: contentIdentitySchema,
+    workflow: z
+      .object({
+        id: z.string().min(1),
+        catalogVersion: z.string().min(1),
+      })
+      .strict(),
+    snapshot: z
+      .object({
+        contentIdentity: contentIdentitySchema,
+        repository: snapshotSchema.shape.repository,
+      })
+      .strict(),
+    collectedAt: z.string().datetime({ offset: true }),
+    steps: z.array(workflowStepSchema).min(1).max(12),
+    omissions: z.array(omissionSchema),
+  })
+  .strict();
+
+export type WorkflowBundle = z.infer<typeof workflowBundleSchema>;
+
+export const workflowExplorerLimits = {
+  maximumSteps: 12,
+  maximumExtractTextCharacters: 32_000,
+} as const;
+
+export const workflowExplorerProjectionSchema = workflowBundleSchema.extend({
+  steps: z.array(
+    workflowStepSchema.extend({
+      evidence: workflowEvidenceSchema.transform((evidence) =>
+        evidence.type === "source"
+          ? {
+              ...evidence,
+              text: evidence.text.slice(
+                0,
+                workflowExplorerLimits.maximumExtractTextCharacters,
+              ),
+              textTruncated:
+                evidence.text.length >
+                workflowExplorerLimits.maximumExtractTextCharacters,
+            }
+          : evidence,
+      ),
+    }),
+  ),
+});
+
+export type WorkflowExplorerProjection = z.infer<
+  typeof workflowExplorerProjectionSchema
+>;
+
+export function createWorkflowExplorerProjection(
+  value: unknown,
+): WorkflowExplorerProjection {
+  const bundle = workflowBundleSchema.parse(value);
+  return workflowExplorerProjectionSchema.parse({
+    ...bundle,
+    steps: bundle.steps.slice(0, workflowExplorerLimits.maximumSteps),
+  });
+}
+
+export function validateWorkflowBundleForWrite(value: unknown): WorkflowBundle {
+  return workflowBundleSchema.parse(value);
+}
+
 /** Creates a bounded, browser-safe view of a validated local snapshot. */
 export function createExplorerProjection(value: unknown): ExplorerProjection {
   const snapshot = snapshotSchema.parse(value);

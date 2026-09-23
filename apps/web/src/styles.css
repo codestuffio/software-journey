@@ -763,6 +763,70 @@ footer {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.workflow-trail {
+  margin: 26px 0;
+  padding: 28px;
+  border: 1px solid #b9ac93;
+  border-radius: 8px;
+  background: rgb(248 243 225 / 74%);
+}
+.workflow-layout {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.6fr) minmax(0, 1.4fr);
+  gap: 24px;
+}
+.workflow-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.workflow-steps button {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  width: 100%;
+  gap: 4px 10px;
+  text-align: left;
+  border-radius: 5px;
+}
+.workflow-steps button[data-selected="true"] {
+  border-color: #b05e24;
+  background: #f2dfbd;
+}
+.workflow-steps button > span {
+  grid-row: span 2;
+  color: #b05e24;
+  font-weight: 800;
+}
+.workflow-steps small {
+  color: #657064;
+  text-transform: uppercase;
+}
+.workflow-detail {
+  min-width: 0;
+}
+.workflow-detail h3 {
+  margin: 6px 0;
+  font-size: 22px;
+}
+.workflow-detail pre {
+  max-height: 420px;
+  overflow: auto;
+}
+.workflow-empty,
+.workflow-error {
+  color: #586158;
+}
+.workflow-error {
+  color: #8d3d24;
+}
+@media (max-width: 700px) {
+  .workflow-layout {
+    grid-template-columns: 1fr;
+  }
+}
 .empty-state {
   padding: 24px 2px;
   color: #586158;

@@ -2,8 +2,10 @@ import { expect, test } from "vitest";
 
 import {
   createExplorerProjection,
+  createWorkflowExplorerProjection,
   explorerLimits,
   validateSnapshotForWrite,
+  validateWorkflowBundleForWrite,
 } from "../packages/contracts/src/index.ts";
 
 const sha = "a".repeat(40);
@@ -63,6 +65,47 @@ test("snapshot write validation accepts a traceable versioned snapshot", () => {
 
   expect(snapshot.schemaVersion).toBe(1);
   expect(snapshot.documentation[0]?.source.lines?.start).toBe(1);
+});
+
+test("workflow bundles keep source evidence bounded and revision-pinned", () => {
+  const snapshot = validSnapshot();
+  const bundle = {
+    schemaVersion: 1,
+    contentIdentity: identity,
+    workflow: { id: "openspec-new-change", catalogVersion: "1" },
+    snapshot: {
+      contentIdentity: snapshot.contentIdentity,
+      repository: snapshot.repository,
+    },
+    collectedAt: "2026-09-20T00:00:01.000Z",
+    steps: [
+      {
+        id: "command",
+        kind: "command",
+        label: "Command entry",
+        evidence: {
+          type: "source",
+          contentId: identity,
+          source: snapshot.documentation[0].source,
+          text: "x".repeat(32_001),
+        },
+      },
+    ],
+    omissions: [],
+  };
+
+  expect(validateWorkflowBundleForWrite(bundle).workflow.id).toBe(
+    "openspec-new-change",
+  );
+  expect(
+    createWorkflowExplorerProjection(bundle).steps[0]?.evidence,
+  ).toMatchObject({
+    type: "source",
+    textTruncated: true,
+  });
+  expect(() =>
+    validateWorkflowBundleForWrite({ ...bundle, steps: [] }),
+  ).toThrow();
 });
 
 test("snapshot write validation rejects malformed persisted data", () => {
