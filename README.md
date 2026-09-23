@@ -42,6 +42,20 @@ Open [localhost:3000](http://localhost:3000), choose **Open a local snapshot**, 
 
 The built-in field-guide sample is synthetic. Keep real snapshots—including the OpenSpec POC—under ignored `.software-journey/` or `.local/` directories.
 
+## Evaluate a pinned workflow
+
+The first evaluator is deliberately narrow: it checks five reviewed OpenSpec onboarding questions against a matching snapshot and workflow bundle. It validates immutable source citations and records `passed`, `failed`, or `unavailable` without generating or grading prose.
+
+```sh
+node apps/cli/dist/index.js evaluate \
+  --repository /Users/you/src/OpenSpec \
+  --snapshot /Users/you/.software-journey/openspec/snapshot.json \
+  --bundle /Users/you/.software-journey/openspec/workflow/workflow.json \
+  --output /Users/you/.software-journey/openspec/evaluation
+```
+
+The command writes `evaluation.json` atomically outside the checkout. It neither executes repository code nor sends source or report data over a network.
+
 ## Workspace
 
 | Location | Responsibility |

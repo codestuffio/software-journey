@@ -233,6 +233,44 @@ export const workflowBundleSchema = z
 
 export type WorkflowBundle = z.infer<typeof workflowBundleSchema>;
 
+export const evaluationCaseSchema = z
+  .object({
+    id: z.string().min(1),
+    question: z.string().min(1),
+    category: workflowStepKindSchema,
+    expectedSource: sourceReferenceSchema,
+  })
+  .strict();
+export type EvaluationCase = z.infer<typeof evaluationCaseSchema>;
+export const evaluationReportSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    repository: snapshotSchema.shape.repository,
+    catalogId: z.string().min(1),
+    evaluatedAt: z.string().datetime({ offset: true }),
+    results: z
+      .array(
+        z
+          .object({
+            caseId: z.string().min(1),
+            status: z.enum(["passed", "failed", "unavailable"]),
+            expectedSource: sourceReferenceSchema,
+            observedSource: sourceReferenceSchema.nullable(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(12),
+    omissions: z.array(omissionSchema),
+  })
+  .strict();
+export type EvaluationReport = z.infer<typeof evaluationReportSchema>;
+export function validateEvaluationReportForWrite(
+  value: unknown,
+): EvaluationReport {
+  return evaluationReportSchema.parse(value);
+}
+
 export const workflowExplorerLimits = {
   maximumSteps: 12,
   maximumExtractTextCharacters: 32_000,

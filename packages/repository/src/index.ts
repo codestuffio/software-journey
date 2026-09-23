@@ -14,13 +14,16 @@ import { dirname, relative, resolve } from "node:path";
 import {
   type CommitMetadata,
   type DocumentationExtract,
+  type EvaluationReport,
   type InventoryEntry,
   type Omission,
   type Snapshot,
+  validateEvaluationReportForWrite,
   validateSnapshotForWrite,
   validateWorkflowBundleForWrite,
   type WorkflowBundle,
 } from "@software-journey/contracts";
+import { openSpecEvaluationCatalog } from "./evaluation-catalog.js";
 import { findWorkflowCatalogEntry } from "./workflow-catalog.js";
 
 export const snapshotLimits = {
@@ -52,6 +55,13 @@ export interface TraceWorkflowOptions {
   outputDirectory: string;
   snapshot: unknown;
   workflowId: string;
+  signal?: AbortSignal;
+}
+export interface EvaluateEvidenceOptions {
+  repositoryPath: string;
+  outputDirectory: string;
+  snapshot: unknown;
+  workflow: unknown;
   signal?: AbortSignal;
 }
 
@@ -894,6 +904,112 @@ export async function writeWorkflowBundle(
     );
     await rename(temporaryDirectory, resolvedOutput);
     return `${resolvedOutput}/workflow.json`;
+  } catch (error) {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+export async function evaluateEvidence(
+  options: EvaluateEvidenceOptions,
+): Promise<EvaluationReport> {
+  const snapshot = validateSnapshotForWrite(options.snapshot);
+  const workflow = validateWorkflowBundleForWrite(options.workflow);
+  if (
+    snapshot.repository.id !== openSpecEvaluationCatalog.repositoryId ||
+    snapshot.repository.headCommit !== openSpecEvaluationCatalog.commitSha ||
+    workflow.snapshot.repository.id !== snapshot.repository.id ||
+    workflow.snapshot.repository.headCommit !== snapshot.repository.headCommit
+  ) {
+    throw new RepositoryAnalysisError(
+      "Evaluation inputs do not match the pinned catalog revision.",
+      "evaluation-mismatch",
+    );
+  }
+  if (options.signal?.aborted)
+    throw new RepositoryAnalysisError("Analysis was canceled.", "canceled");
+  const observed = workflow.steps.flatMap((step) =>
+    step.evidence.type === "source"
+      ? [{ category: step.kind, source: step.evidence.source }]
+      : step.evidence.type === "history"
+        ? [
+            {
+              category: step.kind,
+              source: {
+                repositoryId: snapshot.repository.id,
+                commitSha: step.evidence.commit.sha,
+                path: "",
+                lines: null,
+              },
+            },
+          ]
+        : [],
+  );
+  return validateEvaluationReportForWrite({
+    schemaVersion: 1,
+    repository: snapshot.repository,
+    catalogId: openSpecEvaluationCatalog.id,
+    evaluatedAt: new Date().toISOString(),
+    results: openSpecEvaluationCatalog.cases.map((item) => {
+      const candidate = observed.find(
+        (entry) => entry.category === item.category,
+      );
+      const sourceMatches =
+        candidate?.source.repositoryId === item.expectedSource.repositoryId &&
+        candidate.source.commitSha === item.expectedSource.commitSha &&
+        (item.category === "history" ||
+          candidate.source.path === item.expectedSource.path);
+      return {
+        caseId: item.id,
+        expectedSource: item.expectedSource,
+        observedSource: candidate
+          ? item.category === "history"
+            ? item.expectedSource
+            : candidate.source
+          : null,
+        status: candidate
+          ? sourceMatches
+            ? "passed"
+            : "failed"
+          : "unavailable",
+      };
+    }),
+    omissions: workflow.omissions,
+  });
+}
+
+export async function writeEvaluationReport(
+  repositoryPath: string,
+  outputDirectory: string,
+  report: unknown,
+): Promise<string> {
+  const validated = validateEvaluationReportForWrite(report);
+  const resolvedRepository = resolve(repositoryPath);
+  const resolvedOutput = resolve(outputDirectory);
+  if (outputIsInsideRepository(resolvedRepository, resolvedOutput))
+    throw new RepositoryAnalysisError(
+      "Output directory must be outside the target repository.",
+      "output-inside-repository",
+    );
+  try {
+    await access(resolvedOutput);
+    throw new RepositoryAnalysisError(
+      "Output directory already exists.",
+      "output-exists",
+    );
+  } catch (error) {
+    if (error instanceof RepositoryAnalysisError) throw error;
+  }
+  await mkdir(dirname(resolvedOutput), { recursive: true });
+  const temporaryDirectory = await mkdtemp(`${resolvedOutput}.tmp-`);
+  try {
+    await writeFile(
+      `${temporaryDirectory}/evaluation.json`,
+      `${JSON.stringify(validated, null, 2)}\n`,
+      "utf8",
+    );
+    await rename(temporaryDirectory, resolvedOutput);
+    return `${outputDirectory}/evaluation.json`;
   } catch (error) {
     await rm(temporaryDirectory, { recursive: true, force: true });
     throw error;

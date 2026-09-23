@@ -13,12 +13,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-
+import { openSpecEvaluationCatalog } from "../packages/repository/src/evaluation-catalog.ts";
 import {
   analyzeRepository,
+  evaluateEvidence,
   type RepositoryAnalysisError,
   snapshotLimits,
   traceWorkflow,
+  writeEvaluationReport,
   writeSnapshot,
 } from "../packages/repository/src/index.ts";
 import { openSpecNewChangeWorkflow } from "../packages/repository/src/workflow-catalog.ts";
@@ -77,6 +79,65 @@ async function createFixture(): Promise<string> {
   return repository;
 }
 
+async function createEvaluationInputs(repository: string, includeAll = true) {
+  const snapshot = await analyzeRepository({
+    repositoryPath: repository,
+    outputDirectory: `${repository}-snapshot`,
+  });
+  snapshot.repository.id =
+    openSpecEvaluationCatalog.repositoryId as typeof snapshot.repository.id;
+  snapshot.repository.headCommit = openSpecEvaluationCatalog.commitSha;
+  const cases = includeAll
+    ? openSpecEvaluationCatalog.cases
+    : openSpecEvaluationCatalog.cases.filter(
+        (item) => item.id !== "validating-test",
+      );
+  return {
+    snapshot,
+    workflow: {
+      schemaVersion: 1,
+      contentIdentity:
+        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      workflow: { id: openSpecNewChangeWorkflow.id, catalogVersion: "1" },
+      snapshot: {
+        contentIdentity: snapshot.contentIdentity,
+        repository: snapshot.repository,
+      },
+      collectedAt: "2026-09-22T00:00:00.000Z",
+      steps: cases.map((item) =>
+        item.category === "history"
+          ? {
+              id: item.id,
+              kind: item.category,
+              label: item.question,
+              evidence: {
+                type: "history",
+                commit: {
+                  sha: openSpecEvaluationCatalog.commitSha,
+                  parentShas: [],
+                  authoredAt: "2026-09-22T00:00:00.000Z",
+                  subject: "Pinned revision",
+                },
+              },
+            }
+          : {
+              id: item.id,
+              kind: item.category,
+              label: item.question,
+              evidence: {
+                type: "source",
+                contentId:
+                  "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                source: item.expectedSource,
+                text: "Evidence.",
+              },
+            },
+      ),
+      omissions: [],
+    },
+  };
+}
+
 afterEach(async () => {
   await Promise.all(
     temporaryDirectories
@@ -104,6 +165,104 @@ describe("local repository analysis", () => {
       "test/cli-e2e/basic.test.ts",
       undefined,
     ]);
+  });
+
+  it("keeps all five pinned evaluation questions and their citations explicit", () => {
+    expect(openSpecEvaluationCatalog.cases).toHaveLength(5);
+    expect(openSpecEvaluationCatalog.cases.map((item) => item.id)).toEqual([
+      "project-entry",
+      "execution-path",
+      "governing-spec",
+      "validating-test",
+      "selected-history",
+    ]);
+    expect(
+      openSpecEvaluationCatalog.cases.map((item) => item.expectedSource.path),
+    ).toEqual([
+      "src/cli/index.ts",
+      "src/commands/workflow/new-change.ts",
+      "openspec/specs/change-creation/spec.md",
+      "test/cli-e2e/basic.test.ts",
+      "src/cli/index.ts",
+    ]);
+  });
+
+  it("evaluates matching evidence and makes missing evidence unavailable", async () => {
+    const repository = await createFixture();
+    const complete = await createEvaluationInputs(repository);
+    const passed = await evaluateEvidence({
+      repositoryPath: repository,
+      outputDirectory: `${repository}-evaluation`,
+      ...complete,
+    });
+    expect(passed.results.every((result) => result.status === "passed")).toBe(
+      true,
+    );
+
+    const incomplete = await createEvaluationInputs(repository, false);
+    incomplete.workflow.omissions.push({
+      reason: "per-file-byte-limit",
+      path: "test/cli-e2e/basic.test.ts",
+      detail: "Evidence was truncated during collection.",
+    });
+    const report = await evaluateEvidence({
+      repositoryPath: repository,
+      outputDirectory: `${repository}-incomplete-evaluation`,
+      ...incomplete,
+    });
+    expect(
+      report.results.find((result) => result.caseId === "validating-test"),
+    ).toMatchObject({ status: "unavailable", observedSource: null });
+    expect(report.omissions).toContainEqual(
+      expect.objectContaining({ reason: "per-file-byte-limit" }),
+    );
+  });
+
+  it("rejects mismatched evaluation inputs and keeps report output outside a checkout", async () => {
+    const repository = await createFixture();
+    const inputs = await createEvaluationInputs(repository);
+    const mismatch = structuredClone(inputs.snapshot);
+    mismatch.repository.headCommit = "c".repeat(40);
+    await expect(
+      evaluateEvidence({
+        repositoryPath: repository,
+        outputDirectory: `${repository}-evaluation`,
+        snapshot: mismatch,
+        workflow: inputs.workflow,
+      }),
+    ).rejects.toMatchObject<Partial<RepositoryAnalysisError>>({
+      code: "evaluation-mismatch",
+    });
+    const report = await evaluateEvidence({
+      repositoryPath: repository,
+      outputDirectory: `${repository}-evaluation`,
+      ...inputs,
+    });
+    await expect(
+      writeEvaluationReport(repository, join(repository, "report"), report),
+    ).rejects.toMatchObject<Partial<RepositoryAnalysisError>>({
+      code: "output-inside-repository",
+    });
+  });
+
+  it("does not evaluate or write a report after cancellation", async () => {
+    const repository = await createFixture();
+    const inputs = await createEvaluationInputs(repository);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      evaluateEvidence({
+        repositoryPath: repository,
+        outputDirectory: `${repository}-evaluation`,
+        signal: controller.signal,
+        ...inputs,
+      }),
+    ).rejects.toMatchObject<Partial<RepositoryAnalysisError>>({
+      code: "canceled",
+    });
+    await expect(
+      readFile(join(`${repository}-evaluation`, "evaluation.json")),
+    ).rejects.toThrow();
   });
 
   it("rejects a trace when the checkout does not match the reviewed revision", async () => {
