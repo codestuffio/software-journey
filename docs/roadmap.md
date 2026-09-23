@@ -31,7 +31,7 @@ Software Journey helps developers and AI agents understand a repository from evi
 
 | ID | Milestone | Outcome | Scope boundary | Depends on | Status | OpenSpec change |
 | --- | --- | --- | --- | --- | --- | --- |
-| R5 | Bounded agent retrieval | An agent can request versioned repository context by area or source reference, with coverage and truncation metadata. | No MCP transport until the retrieval contract proves useful. | R1, R4 | planned | — |
+| R5 | Bounded agent retrieval | An agent can request versioned repository context by area or source reference, with coverage and truncation metadata. | No MCP transport until the retrieval contract proves useful. | R1, R4 | in review | [`bounded-agent-retrieval`](../openspec/changes/bounded-agent-retrieval/) |
 | R6 | Guided learning | A developer can work through evidence-backed tutorial steps and deeper explanations. | Generated explanations remain optional and clearly distinguish facts, quotes, inference, and unknowns. | R3, R4 | planned | — |
 | R7 | Optional assisted explanations | A user can approve selected source snippets for a provider-backed explanation with a visible cost and cancellation boundary. | No automatic source transfer, accounts, or multi-tenant service. | R4, R6 | planned | — |
 

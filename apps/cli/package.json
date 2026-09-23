@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@software-journey/contracts": "workspace:*",
+    "@software-journey/knowledge": "workspace:*",
     "@software-journey/repository": "workspace:*"
   },
   "devDependencies": {

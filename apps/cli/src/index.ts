@@ -1,8 +1,17 @@
 #!/usr/bin/env node
 
 import {
+  retrievalLimits,
+  retrievalRequestSchema,
+} from "@software-journey/contracts";
+import {
+  evaluateRetrievalCases,
+  retrieveSnapshot,
+} from "@software-journey/knowledge";
+import {
   analyzeRepository,
   evaluateEvidence,
+  openSpecEvaluationCatalog,
   RepositoryAnalysisError,
   traceWorkflow,
   writeEvaluationReport,
@@ -19,6 +28,8 @@ Usage:
   software-journey analyze --repository <path> --output <directory>
   software-journey trace --repository <path> --snapshot <file> --workflow <id> --output <directory>
   software-journey evaluate --repository <path> --snapshot <file> --bundle <file> --output <directory>
+  software-journey retrieve --snapshot <file> [--area <prefix>] [--path <exact-path>] [--max-evidence <1-24>] [--max-characters <1-8000>]
+  software-journey evaluate-retrieval --snapshot <file>
 
 Analyze reads committed HEAD only. It never runs repository code, includes working-tree changes, or sends source content over a network.
 Trace reads only the reviewed workflow catalog's committed paths. Output must be outside the selected checkout. Local artifacts record exclusions, limits, and incomplete history.`);
@@ -34,9 +45,116 @@ async function main(): Promise<void> {
     printHelp();
     return;
   }
-  if (!["analyze", "trace", "evaluate"].includes(args[0] ?? "")) {
+  if (
+    ![
+      "analyze",
+      "trace",
+      "evaluate",
+      "retrieve",
+      "evaluate-retrieval",
+    ].includes(args[0] ?? "")
+  ) {
     console.error("Unknown command. Run software-journey --help.");
     process.exitCode = 1;
+    return;
+  }
+  if (args[0] === "evaluate-retrieval") {
+    if (args.length !== 3 || args[1] !== "--snapshot" || !args[2]) {
+      console.error("Evaluate-retrieval requires --snapshot <file>.");
+      process.exitCode = 1;
+      return;
+    }
+    try {
+      const fs = await import("node:fs/promises");
+      const snapshot = JSON.parse(await fs.readFile(args[2], "utf8"));
+      if (
+        snapshot.repository?.id !== openSpecEvaluationCatalog.repositoryId ||
+        snapshot.repository?.headCommit !== openSpecEvaluationCatalog.commitSha
+      ) {
+        throw new Error(
+          "Snapshot does not match the pinned OpenSpec evaluation catalog.",
+        );
+      }
+      console.log(
+        JSON.stringify(
+          evaluateRetrievalCases(
+            snapshot,
+            openSpecEvaluationCatalog.id,
+            openSpecEvaluationCatalog.cases,
+          ),
+          null,
+          2,
+        ),
+      );
+    } catch (error) {
+      console.error(
+        `Retrieval evaluation failed: ${error instanceof Error ? error.message : "Invalid snapshot."}`,
+      );
+      process.exitCode = 1;
+    }
+    return;
+  }
+  if (args[0] === "retrieve") {
+    const allowed = new Set([
+      "--snapshot",
+      "--area",
+      "--path",
+      "--max-evidence",
+      "--max-characters",
+    ]);
+    const seen = new Set<string>();
+    for (let index = 1; index < args.length; index += 2) {
+      const flag = args[index];
+      if (
+        !flag ||
+        !allowed.has(flag) ||
+        seen.has(flag) ||
+        !args[index + 1] ||
+        args[index + 1]?.startsWith("--")
+      ) {
+        console.error(
+          "Retrieve requires --snapshot <file> and valid optional filters and limits.",
+        );
+        process.exitCode = 1;
+        return;
+      }
+      seen.add(flag);
+    }
+    if (!seen.has("--snapshot")) {
+      console.error("Retrieve requires --snapshot <file>.");
+      process.exitCode = 1;
+      return;
+    }
+    try {
+      const fs = await import("node:fs/promises");
+      const snapshot = JSON.parse(
+        await fs.readFile(valueAfter("--snapshot") as string, "utf8"),
+      );
+      const maximumEvidence =
+        valueAfter("--max-evidence") ?? String(retrievalLimits.maximumEvidence);
+      const maximumCharactersPerEvidence =
+        valueAfter("--max-characters") ??
+        String(retrievalLimits.maximumCharactersPerEvidence);
+      const request = retrievalRequestSchema.parse({
+        schemaVersion: 1,
+        repository: snapshot.repository,
+        snapshotContentIdentity: snapshot.contentIdentity,
+        filter: {
+          area: valueAfter("--area") ?? null,
+          path: valueAfter("--path") ?? null,
+        },
+        limits: {
+          maximumEvidence: Number(maximumEvidence),
+          maximumCharactersPerEvidence: Number(maximumCharactersPerEvidence),
+        },
+      });
+      console.log(JSON.stringify(retrieveSnapshot(snapshot, request), null, 2));
+    } catch (error) {
+      console.error(
+        `Retrieval failed: ${error instanceof Error ? error.message : "Invalid snapshot."}`,
+      );
+      process.exitCode = 1;
+    }
     return;
   }
   const repositoryPath = valueAfter("--repository");

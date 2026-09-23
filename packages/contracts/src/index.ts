@@ -147,6 +147,97 @@ export const snapshotSchema = z
 
 export type Snapshot = z.infer<typeof snapshotSchema>;
 
+export const retrievalLimits = {
+  maximumEvidence: 24,
+  maximumCharactersPerEvidence: 8_000,
+  maximumReportedOmissions: 48,
+} as const;
+
+export const retrievalRequestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    repository: snapshotSchema.shape.repository,
+    snapshotContentIdentity: contentIdentitySchema,
+    filter: z
+      .object({
+        area: safePathSchema.nullable(),
+        path: safePathSchema.nullable(),
+      })
+      .strict(),
+    limits: z
+      .object({
+        maximumEvidence: z
+          .number()
+          .int()
+          .positive()
+          .max(retrievalLimits.maximumEvidence),
+        maximumCharactersPerEvidence: z
+          .number()
+          .int()
+          .positive()
+          .max(retrievalLimits.maximumCharactersPerEvidence),
+      })
+      .strict(),
+  })
+  .strict();
+export type RetrievalRequest = z.infer<typeof retrievalRequestSchema>;
+
+export const retrievalResponseSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    snapshot: z
+      .object({
+        contentIdentity: contentIdentitySchema,
+        repository: snapshotSchema.shape.repository,
+      })
+      .strict(),
+    request: retrievalRequestSchema,
+    evidence: z
+      .array(documentationExtractSchema.extend({ textTruncated: z.boolean() }))
+      .max(retrievalLimits.maximumEvidence),
+    coverage: z
+      .object({
+        matchingInventoryEntries: z.number().int().nonnegative(),
+        matchingExtracts: z.number().int().nonnegative(),
+        returnedExtracts: z.number().int().nonnegative(),
+        unavailableInventoryEntries: z.number().int().nonnegative(),
+        omittedByResultLimit: z.number().int().nonnegative(),
+        matchingSnapshotOmissions: z.number().int().nonnegative(),
+        unreportedOmissions: z.number().int().nonnegative(),
+        resultTruncated: z.boolean(),
+        snapshotCoverage: coverageSchema.omit({ omissions: true }),
+      })
+      .strict(),
+    omissions: z
+      .array(omissionSchema)
+      .max(retrievalLimits.maximumReportedOmissions),
+  })
+  .strict();
+export type RetrievalResponse = z.infer<typeof retrievalResponseSchema>;
+
+export const retrievalEvaluationSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    snapshot: retrievalResponseSchema.shape.snapshot,
+    catalogId: z.string().min(1),
+    results: z
+      .array(
+        z
+          .object({
+            caseId: z.string().min(1),
+            status: z.enum(["resolved", "unavailable"]),
+            expectedSource: sourceReferenceSchema,
+            observedSource: sourceReferenceSchema.nullable(),
+            coverage: retrievalResponseSchema.shape.coverage,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(12),
+  })
+  .strict();
+export type RetrievalEvaluation = z.infer<typeof retrievalEvaluationSchema>;
+
 export const explorerLimits = {
   maximumDocumentationExtracts: 48,
   maximumExtractTextCharacters: 24_000,

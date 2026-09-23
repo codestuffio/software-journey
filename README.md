@@ -56,6 +56,21 @@ node apps/cli/dist/index.js evaluate \
 
 The command writes `evaluation.json` atomically outside the checkout. It neither executes repository code nor sends source or report data over a network.
 
+## Retrieve bounded evidence
+
+The retrieval command reads only a saved snapshot and prints versioned JSON. An area includes that directory and its descendants; a path selects one exact file. The output identifies the snapshot and commit, cites the displayed source lines, and reports missing evidence and truncation.
+
+```sh
+node apps/cli/dist/index.js retrieve \
+  --snapshot /Users/you/.software-journey/project-snapshot/snapshot.json \
+  --area docs --max-evidence 5 --max-characters 2000
+
+node apps/cli/dist/index.js evaluate-retrieval \
+  --snapshot /Users/you/.software-journey/openspec/snapshot.json
+```
+
+The fixed evaluation command requires the pinned OpenSpec snapshot. Current snapshots capture documentation text, not general source file text; retrieval reports inventory paths without extracts as unavailable. See [R5 acceptance evidence](docs/acceptance/bounded-agent-retrieval.md).
+
 ## Workspace
 
 | Location | Responsibility |
@@ -65,7 +80,7 @@ The command writes `evaluation.json` atomically outside the checkout. It neither
 | `packages/contracts` | Zod-validated snapshot contract and shared vocabulary |
 | `packages/typescript-config` | Shared strict TypeScript configuration |
 | `packages/repository` | Read-only Git and filesystem analysis boundary |
-| `packages/knowledge` | Reserved retrieval/generation boundary, documentation only for now |
+| `packages/knowledge` | Bounded local snapshot retrieval and fixed-case retrieval evaluation |
 | `openspec/specs` | Delivered capability specifications |
 | `openspec/changes` | Proposed changes and implementation tasks |
 | `docs` | Product direction, architecture, decisions, and research |

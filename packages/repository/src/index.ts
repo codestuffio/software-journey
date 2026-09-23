@@ -24,6 +24,9 @@ import {
   type WorkflowBundle,
 } from "@software-journey/contracts";
 import { openSpecEvaluationCatalog } from "./evaluation-catalog.js";
+
+export { openSpecEvaluationCatalog } from "./evaluation-catalog.js";
+
 import { findWorkflowCatalogEntry } from "./workflow-catalog.js";
 
 export const snapshotLimits = {
