@@ -1,6 +1,6 @@
 # Architecture
 
-The current implementation contains a TanStack Start local snapshot explorer, a Node CLI for read-only committed-HEAD analysis, and schema-validated shared contracts. Knowledge generation remains a documented boundary awaiting implementation.
+The current implementation contains a TanStack Start local snapshot explorer with an authored guided-learning view, a Node CLI for read-only committed-HEAD analysis, and schema-validated shared contracts. Model-based knowledge generation remains a documented boundary awaiting implementation.
 
 ## Target flow
 
@@ -24,7 +24,7 @@ The diagram describes the planned product, not current services.
 
 `packages/repository` will own Git and filesystem access, exclusions, size limits, history extraction, and stable evidence identifiers. It must not import UI or provider code.
 
-`packages/knowledge` will consume snapshots and produce learning resources and retrieval results. Generated artifacts need model/prompt version, snapshot identity, citations, cost, and coverage metadata. A local JSON store is the proposed first persistence format; SQLite is a later option if query patterns justify it.
+The first authored tutorial catalog lives in `apps/web` and consumes the existing local workflow bundle. Its citation check validates evidence identity, revision, path, and line range. `packages/knowledge` remains reserved for broader learning resources and retrieval results. Future generated artifacts need model/prompt version, snapshot identity, citations, cost, and coverage metadata. A local JSON store is the proposed first persistence format; SQLite is a later option if query patterns justify it.
 
 `packages/contracts` holds vocabulary and runtime schemas shared between these boundaries. Snapshot writes and browser explorer projections are validated and bounded before they are presented as evidence.
 

@@ -130,3 +130,140 @@ test("explorer keeps the active snapshot when a workflow bundle mismatches", asy
   );
   await expect(page.getByText("History: limited")).toBeVisible();
 });
+
+test("Learning guides a matching workflow with labeled claims and citations", async ({
+  page,
+}) => {
+  const repositoryId =
+    "sha256:eee892b5859866adf340033826fac3acb4ab68c1ed787676a313a00e8ac5d325";
+  const commitSha = "bae58cf61479986431bb798acbe5a688a591c18c";
+  const snapshotIdentity = `sha256:${"a".repeat(64)}`;
+  const bundleIdentity = `sha256:${"b".repeat(64)}`;
+  const demo = await import("../../apps/web/src/demo-snapshot.ts");
+  const snapshot = {
+    ...demo.demoSnapshot,
+    contentIdentity: snapshotIdentity,
+    repository: { id: repositoryId, headCommit: commitSha },
+  };
+  const paths = [
+    ["command-entry", "src/cli/index.ts"],
+    ["governing-specification", "openspec/specs/change-creation/spec.md"],
+    ["implementation", "src/commands/workflow/new-change.ts"],
+    ["test", "test/cli-e2e/basic.test.ts"],
+  ];
+  const workflow = {
+    schemaVersion: 1,
+    contentIdentity: bundleIdentity,
+    workflow: { id: "openspec-new-change", catalogVersion: "1" },
+    snapshot: {
+      contentIdentity: snapshotIdentity,
+      repository: snapshot.repository,
+    },
+    collectedAt: "2026-09-20T00:00:02.000Z",
+    steps: paths.map(([id, path], index) => ({
+      id,
+      kind: "implementation",
+      label: id,
+      evidence: {
+        type: "source",
+        contentId: `sha256:${(index + 1).toString(16).repeat(64)}`,
+        source: { repositoryId, commitSha, path, lines: { start: 1, end: 3 } },
+        text: `Captured ${id} evidence`,
+      },
+    })),
+    omissions: [],
+  };
+  await page.goto("/");
+  await page.getByLabel("Choose a local snapshot JSON file").setInputFiles({
+    name: "snapshot.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(snapshot)),
+  });
+  await page
+    .getByLabel("Choose a local workflow bundle JSON file")
+    .setInputFiles({
+      name: "workflow.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(workflow)),
+    });
+  await page.getByRole("button", { name: "Learning" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Find the command entry" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Inference · authored explanation"),
+  ).toBeVisible();
+  await page.getByText("View cited source evidence").first().click();
+  await expect(
+    page.getByText("Captured command-entry evidence").first(),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "2. Read the governing specification" })
+    .click();
+  await expect(page.getByText("Quoted documentation")).toBeVisible();
+  await expect(page.getByText("Unknown", { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("heading", { name: "Read the governing specification" }),
+  ).toBeVisible();
+  const wrongCitationWorkflow = {
+    ...workflow,
+    steps: workflow.steps.map((step) =>
+      step.id === "governing-specification"
+        ? {
+            ...step,
+            evidence: {
+              ...step.evidence,
+              source: { ...step.evidence.source, path: "docs/other.md" },
+            },
+          }
+        : step,
+    ),
+  };
+  await page
+    .getByLabel("Choose a local workflow bundle JSON file")
+    .setInputFiles({
+      name: "wrong-citation.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(wrongCitationWorkflow)),
+    });
+  await page
+    .getByRole("button", { name: "2. Read the governing specification" })
+    .click();
+  await expect(page.getByText("Quoted evidence is unavailable.")).toBeVisible();
+  await expect(
+    page.getByText("Some citations are unavailable or invalid.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "1. Find the command entry" }).click();
+  await expect(
+    page.getByText("Some citations are unavailable or invalid.", {
+      exact: false,
+    }),
+  ).toHaveCount(0);
+  await page
+    .getByLabel("Choose a local workflow bundle JSON file")
+    .setInputFiles({
+      name: "wrong-workflow.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(
+        JSON.stringify({
+          ...workflow,
+          snapshot: {
+            ...workflow.snapshot,
+            repository: {
+              ...workflow.snapshot.repository,
+              headCommit: "f".repeat(40),
+            },
+          },
+        }),
+      ),
+    });
+  await expect(page.getByRole("alert")).toContainText(
+    "different snapshot revision",
+  );
+  await expect(
+    page.getByRole("heading", { name: "Read the governing specification" }),
+  ).toHaveCount(0);
+});
