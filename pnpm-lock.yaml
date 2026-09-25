@@ -57,6 +57,9 @@ importers:
       '@software-journey/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@software-journey/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
       '@tanstack/react-router':
         specifier: 1.170.38
         version: 1.170.38(react-dom@19.3.0(react@19.3.0))(react@19.3.0)

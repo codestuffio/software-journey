@@ -2,7 +2,7 @@
 
 Understand a repository through its code, documentation, and history. The planned application turns that evidence into developer onboarding, an interactive reference, and focused context for AI agents.
 
-**Current state:** local committed-HEAD repository snapshots are available from the CLI and can be explored in the browser. Bounded evidence discovery and retrieval are available from the CLI. Guided tutorial generation remains planned.
+**Current state:** local committed-HEAD repository snapshots are available from the CLI and can be explored in the browser. Bounded evidence discovery and retrieval are available from the CLI. A five-step authored OpenSpec lesson is available in the explorer; optional model explanations remain planned.
 
 ## Start locally
 
@@ -41,6 +41,10 @@ The output is local JSON, not sanitized content. It never executes repository co
 Open [localhost:3000](http://localhost:3000), choose **Open a local snapshot**, and select the `snapshot.json` written by the CLI. The explorer validates the selected file in the browser, then shows only recorded evidence: collection coverage, omissions, documentation extracts, and immutable source citations. It never reads the selected repository checkout, executes source content, or sends the snapshot to a provider.
 
 The built-in field-guide sample is synthetic. Keep real snapshots—including the OpenSpec POC—under ignored `.software-journey/` or `.local/` directories.
+
+## Learn one workflow
+
+Load the pinned OpenSpec snapshot and matching workflow bundle to open **Your first OpenSpec change**. Follow the five cited evidence steps, answer checkpoints, and draft a first-change plan. You can export your plan and citations locally. Restart or replace an artifact to clear progress. Unsupported revisions and incomplete evidence stay explicit. See [lesson acceptance](docs/acceptance/openspec-lesson.md).
 
 ## Evaluate a pinned workflow
 
@@ -116,7 +120,7 @@ Turborepo coordinates workspace tasks. Vite bundles TanStack Start. **Do not use
 
 ## Spec-driven development
 
-Start with [the product direction](docs/product.md) and [architecture](docs/architecture.md). Completed capabilities are recorded in [the delivered specs](openspec/specs/). The implemented [retrieve-local-evidence change](openspec/changes/archive/2026-09-24-retrieve-local-evidence/proposal.md) is archived; the [roadmap](docs/roadmap.md) tracks the next guided lesson.
+Start with [the product direction](docs/product.md) and [architecture](docs/architecture.md). Completed capabilities are recorded in [the delivered specs](openspec/specs/). The implemented [retrieve-local-evidence change](openspec/changes/archive/2026-09-24-retrieve-local-evidence/proposal.md) is archived; the [roadmap](docs/roadmap.md) tracks the next assisted-explanation feature.
 
 ```sh
 pnpm spec list

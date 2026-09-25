@@ -578,3 +578,31 @@ export async function validateRetrievalInputs(
   }
   return { snapshot, bundle };
 }
+
+export const guidedLessonSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    catalogVersion: z.literal("1"),
+    title: z.string(),
+    snapshotIdentity: contentIdentitySchema,
+    bundleIdentity: contentIdentitySchema,
+    steps: z
+      .array(
+        z
+          .object({
+            id: z.string(),
+            title: z.string(),
+            guidance: z.string(),
+            question: z.string(),
+            choices: z.array(z.string()).length(3),
+            correctIndex: z.number().int().min(0).max(2),
+            feedback: z.string(),
+            evidence: retrievalResponseSchema,
+            ready: z.boolean(),
+          })
+          .strict(),
+      )
+      .length(5),
+  })
+  .strict();
+export type GuidedLesson = z.infer<typeof guidedLessonSchema>;

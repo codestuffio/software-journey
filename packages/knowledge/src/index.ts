@@ -469,3 +469,5 @@ export async function retrieveEvidence(
   await checkpoint(signal);
   return retrievalResponseSchema.parse(response);
 }
+
+export { buildGuidedLesson, lessonCatalog, lessonTarget } from "./lesson.js";

@@ -32,12 +32,12 @@ Software Journey helps developers and AI agents understand a repository from evi
 | ID | Milestone | Outcome | Scope boundary | Depends on | Status | OpenSpec change |
 | --- | --- | --- | --- | --- | --- | --- |
 | R5 | Bounded agent retrieval | An agent can request versioned repository context by area or source reference, with coverage and truncation metadata. | Start with captured documentation and workflow evidence; no MCP transport until the retrieval contract proves useful. | R1, R4 | complete | [`retrieve-local-evidence`](../openspec/changes/archive/2026-09-24-retrieve-local-evidence/) |
-| R6 | Guided learning | A developer can work through evidence-backed tutorial steps and deeper explanations. | Generated explanations remain optional and clearly distinguish facts, quotes, inference, and unknowns. | R3, R4 | planned | — |
+| R6 | Guided learning | A developer can work through evidence-backed tutorial steps and deeper explanations. | Generated explanations remain optional and clearly distinguish facts, quotes, inference, and unknowns. | R3, R4 | complete | [Archived 2026-09-24](../openspec/changes/archive/2026-09-24-learn-openspec-workflow/) |
 | R7 | Optional assisted explanations | A user can approve selected source snippets for a provider-backed explanation with a visible cost and cancellation boundary. | No automatic source transfer, accounts, or multi-tenant service. | R4, R6 | planned | — |
 
 **Exit evidence:** fixed evaluation tasks show that retrieval or assisted explanations preserve answer quality and citation validity. Agent requests expose their revision, coverage, truncation, latency, and cost where applicable.
 
-R5 bounded local retrieval is implemented, verified, and archived. The next feature is an R6 slice containing one authored, source-cited lesson. R5 acceptance checks evidence correctness and response budgets. Semantic answer quality, historical behavior-change examples, and token or cost comparisons need later evaluation work.
+R5 bounded local retrieval is implemented, verified, and archived. R6 now includes one authored, source-cited OpenSpec lesson. R7 optional assisted explanations is next. R5 acceptance checks evidence correctness and response budgets. Semantic answer quality, historical behavior-change examples, and token or cost comparisons need later evaluation work.
 
 ## Deferred scaling work
 

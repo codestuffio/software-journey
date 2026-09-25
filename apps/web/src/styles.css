@@ -877,3 +877,64 @@ footer {
     padding: 20px;
   }
 }
+
+.guided-lesson {
+  margin-block: 2rem;
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid #c4b89d;
+  border-radius: 1rem;
+  background: #fffdf5;
+  min-width: 0;
+}
+.guided-lesson pre {
+  max-height: 28rem;
+  overflow: auto;
+  padding: 1rem;
+  background: #efeadd;
+  font-size: 0.8rem;
+}
+.guided-lesson code {
+  overflow-wrap: anywhere;
+}
+.guided-lesson button {
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+}
+.guided-lesson button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.lesson-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+}
+.lesson-navigation [aria-current] {
+  font-weight: 700;
+  outline: 2px solid #665c3c;
+}
+.lesson-choice {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.6rem;
+}
+.lesson-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+.lesson-plan {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+.lesson-plan textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.75rem;
+  font: inherit;
+}

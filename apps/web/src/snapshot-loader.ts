@@ -2,15 +2,14 @@ import {
   createExplorerProjection,
   createWorkflowExplorerProjection,
   type ExplorerProjection,
+  snapshotSchema,
   type WorkflowExplorerProjection,
 } from "@software-journey/contracts";
 
 export const maximumSnapshotFileBytes = 8 * 1024 * 1024;
 export const maximumWorkflowFileBytes = 2 * 1024 * 1024;
 
-export async function loadSelectedSnapshot(
-  file: File,
-): Promise<ExplorerProjection> {
+export async function loadSnapshotSession(file: File) {
   if (file.size > maximumSnapshotFileBytes) {
     throw new Error(
       "This snapshot is larger than the 8 MB local explorer limit.",
@@ -25,7 +24,8 @@ export async function loadSelectedSnapshot(
   }
 
   try {
-    return createExplorerProjection(parsed);
+    const snapshot = snapshotSchema.parse(parsed);
+    return { snapshot, projection: createExplorerProjection(snapshot) };
   } catch {
     throw new Error("This file is not a supported Software Journey snapshot.");
   }
@@ -52,4 +52,10 @@ export async function loadSelectedWorkflow(
       "This file is not a supported Software Journey workflow bundle.",
     );
   }
+}
+
+export async function loadSelectedSnapshot(
+  file: File,
+): Promise<ExplorerProjection> {
+  return (await loadSnapshotSession(file)).projection;
 }
