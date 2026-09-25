@@ -606,3 +606,171 @@ export const guidedLessonSchema = z
   })
   .strict();
 export type GuidedLesson = z.infer<typeof guidedLessonSchema>;
+
+export const explanationSourceSchema = z
+  .object({
+    id: z.string().min(1).max(256),
+    source: sourceReferenceSchema,
+    text: z.string().min(1).max(32768),
+  })
+  .strict();
+export const explanationContentSchema = z
+  .object({
+    blocks: z
+      .array(
+        z
+          .object({
+            kind: z.enum(["inference", "quote", "unknown"]),
+            text: z.string().min(1).max(2000),
+            citations: z.array(z.string().min(1).max(256)).max(8),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(8),
+  })
+  .strict();
+export const explanationLimitsSchema = z
+  .object({
+    maxCostUsd: z.number().min(0.0001).max(0.1).default(0.01),
+    maxOutputTokens: z.number().int().min(128).max(2000).default(1000),
+  })
+  .strict();
+export const explanationReportSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    kind: z.literal("explanation-report"),
+    provider: z.literal("OpenAI"),
+    model: z.literal("gpt-4.1-mini-2025-04-14"),
+    promptVersion: z.literal("1"),
+    approvalDigest: contentIdentitySchema,
+    inputs: z
+      .object({
+        snapshot: contentIdentitySchema,
+        bundle: contentIdentitySchema.nullable(),
+      })
+      .strict(),
+    repository: snapshotSchema.shape.repository,
+    sources: z.array(explanationSourceSchema).min(1).max(8),
+    coverage: z
+      .object({
+        status: availabilitySchema,
+        reasons: z.array(z.string()).max(32),
+        history: coverageSchema.shape.history.shape.completeness,
+      })
+      .strict(),
+    content: explanationContentSchema,
+    responseId: z.string().min(1).max(256),
+    elapsedMs: z.number().nonnegative(),
+    usage: z
+      .object({
+        inputTokens: nonnegativeInteger,
+        outputTokens: nonnegativeInteger,
+      })
+      .strict(),
+    cost: z
+      .object({
+        pricingDate: z.literal("2026-09-24"),
+        inputPerMillion: z.literal(0.4),
+        outputPerMillion: z.literal(1.6),
+        maxCostUsd: z.number().positive(),
+        estimatedMaximumUsd: z.number().nonnegative(),
+        reportedUsageEstimateUsd: z.number().nonnegative(),
+      })
+      .strict(),
+    warning: z.literal(
+      "Unverified model interpretation. Citation checks do not establish truth. Costs are estimates at pinned published rates, not a billing guarantee.",
+    ),
+  })
+  .strict();
+export type ExplanationReport = z.infer<typeof explanationReportSchema>;
+export type ExplanationSource = z.infer<typeof explanationSourceSchema>;
+export const explanationProviderResponseSchema = z.object({
+  id: z.string().min(1).max(256),
+  model: z.string(),
+  status: z.string(),
+  output: z.array(
+    z
+      .object({
+        type: z.string(),
+        content: z
+          .array(
+            z
+              .object({ type: z.string(), text: z.string().optional() })
+              .passthrough(),
+          )
+          .optional(),
+      })
+      .passthrough(),
+  ),
+  usage: z.object({
+    input_tokens: nonnegativeInteger,
+    output_tokens: nonnegativeInteger,
+  }),
+});
+
+export function validateExplanationContent(
+  content: unknown,
+  sources: ExplanationSource[],
+) {
+  const parsed = explanationContentSchema.parse(content);
+  for (const block of parsed.blocks) {
+    if (block.kind !== "unknown" && block.citations.length === 0)
+      throw new Error("Explanation block lacks a citation");
+    const selected = block.citations.map((id) => {
+      const source = sources.find((item) => item.id === id);
+      if (!source) throw new Error("Explanation cites unselected evidence");
+      return source;
+    });
+    if (
+      block.kind === "quote" &&
+      !selected.some((source) => source.text.includes(block.text))
+    )
+      throw new Error("Explanation quote does not match source");
+  }
+  return parsed;
+}
+
+export const explanationPreviewSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    kind: z.literal("explanation-preview"),
+    provider: z.literal("OpenAI"),
+    endpoint: z.literal("https://api.openai.com/v1/responses"),
+    model: z.literal("gpt-4.1-mini-2025-04-14"),
+    promptVersion: z.literal("1"),
+    inputs: explanationReportSchema.shape.inputs,
+    repository: snapshotSchema.shape.repository,
+    sources: z.array(explanationSourceSchema).min(1).max(8),
+    coverage: explanationReportSchema.shape.coverage,
+    body: z
+      .object({
+        model: z.literal("gpt-4.1-mini-2025-04-14"),
+        store: z.literal(false),
+        max_output_tokens: z.number().int().min(128).max(2000),
+        instructions: z.string().max(2000),
+        input: z.string().max(65536),
+        text: z
+          .object({
+            format: z
+              .object({
+                type: z.literal("json_schema"),
+                name: z.literal("evidence_explanation"),
+                strict: z.literal(true),
+                schema: z.unknown(),
+              })
+              .strict(),
+          })
+          .strict(),
+      })
+      .strict(),
+    limits: explanationLimitsSchema.extend({
+      estimatedInputTokens: nonnegativeInteger,
+    }),
+    cost: explanationReportSchema.shape.cost.omit({
+      reportedUsageEstimateUsd: true,
+    }),
+    notice: z.string(),
+    approvalDigest: contentIdentitySchema,
+  })
+  .strict();

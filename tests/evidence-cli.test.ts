@@ -54,7 +54,7 @@ syncBuiltinESMExports();`,
           ["--import", guard, cli, ...args],
           {
             cwd: dir,
-            env: { ...process.env, PATH: "" },
+            env: { ...process.env, PATH: "", OPENAI_API_KEY: "" },
             encoding: "utf8",
             stdio: ["ignore", "pipe", "pipe"],
           },
@@ -172,4 +172,69 @@ test("compiled CLI cancellation publishes no successful response", async () => {
   expect(code).not.toBe(0);
   expect(output).toBe("");
   expect(errors).toContain("canceled");
+});
+
+test("explain CLI previews offline and rejects stale approval before network access", async () => {
+  const f = await setup();
+  const args = [
+    "explain",
+    "--snapshot",
+    f.snapshot,
+    "--bundle",
+    f.bundle,
+    "--request",
+    f.request,
+  ];
+  const preview = f.run(args);
+  expect(preview.status, preview.stderr).toBe(0);
+  const parsed = JSON.parse(preview.stdout);
+  expect(parsed.kind).toBe("explanation-preview");
+  const stale = f.run([...args, "--approve", "sha256:invalid"]);
+  expect(stale.status).not.toBe(0);
+  expect(stale.stdout).toBe("");
+  expect(stale.stderr).toContain("Approval");
+  const absent = f.run([...args, "--approve", parsed.approvalDigest]);
+  expect(absent.status).not.toBe(0);
+  expect(absent.stderr).toContain("OPENAI_API_KEY");
+});
+
+test("approved explain CLI produces a local report through a simulated provider", async () => {
+  const f = await setup();
+  const args = [
+    "explain",
+    "--snapshot",
+    f.snapshot,
+    "--bundle",
+    f.bundle,
+    "--request",
+    f.request,
+  ];
+  const preview = JSON.parse(f.run(args).stdout);
+  const mock = join(f.dir, "provider.mjs");
+  await writeFile(
+    mock,
+    `import assert from 'node:assert/strict';globalThis.fetch=async(url,options)=>{assert.equal(url,'https://api.openai.com/v1/responses');assert.equal(options.redirect,'error');const body=JSON.parse(options.body);assert.equal(body.store,false);assert.equal(body.tools,undefined);const source=JSON.parse(body.input).sources[0];return new Response(JSON.stringify({id:'resp_cli_fixture',model:body.model,status:'completed',usage:{input_tokens:100,output_tokens:50},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({blocks:[{kind:'inference',text:'Fixture interpretation.',citations:[source.id]}]})}]}]}));};`,
+  );
+  const output = execFileSync(
+    process.execPath,
+    [
+      "--import",
+      f.guard,
+      "--import",
+      mock,
+      cli,
+      ...args,
+      "--approve",
+      preview.approvalDigest,
+    ],
+    {
+      cwd: f.dir,
+      env: { ...process.env, OPENAI_API_KEY: "fake-only" },
+      encoding: "utf8",
+    },
+  );
+  const report = JSON.parse(output);
+  expect(report.kind).toBe("explanation-report");
+  expect(report.responseId).toBe("resp_cli_fixture");
+  expect(output).not.toContain("fake-only");
 });

@@ -31,7 +31,7 @@ Code and documentation can disagree. Commit messages record author claims, not p
 | 3. Guided learning | Tutorial steps and deeper explanations, optionally assisted by a model | Each repository-specific factual claim is traceable; inferred claims are labeled; provider budget and cancellation work |
 | 4. Agent access | Versioned JSON context and bounded retrieval, then an MCP adapter if useful | Fixed tasks compare answer quality, tokens, tool calls, latency, and cost against direct repository exploration |
 
-Milestones 1 and 2 establish implemented local evidence collection and browsing. Bounded CLI retrieval and a pinned authored guided lesson are implemented. Provider-assisted explanations remain planned; source stays local by default.
+Milestones 1 and 2 establish implemented local evidence collection and browsing. Bounded CLI retrieval and a pinned authored guided lesson are implemented. Optional provider-assisted explanations require approval of a previewed payload; source stays local by default. Live provider and semantic-quality evaluation remain unperformed.
 
 ## First demonstration
 
@@ -51,7 +51,7 @@ Proposed pilot success: a developer can explain one workflow and identify a safe
 
 | Question | Recommendation | Needed before |
 | --- | --- | --- |
-| Provider and model budget | Pick one provider first; set per-run spend and token caps | Generated tutorials |
+| Provider and model budget | Initial explanation slice uses a pinned OpenAI model, a conservative preflight cost ceiling, and an output cap; live quality remains unmeasured | Broader generated tutorials |
 | Supported repositories | TypeScript/JavaScript first; generic text/docs and Git metadata for others | Language-aware indexing |
 | History default | Selected revision plus a bounded recent history; disclose shallow/missing history | Ingestion implementation |
 | Dirty working trees | Snapshot committed HEAD first and warn that uncommitted changes are excluded | Ingestion implementation |

@@ -9,8 +9,8 @@ import {
   writeSnapshot,
   writeWorkflowBundle,
 } from "@software-journey/repository";
-
 import { runEvidenceCommand } from "./evidence.js";
+import { runExplainCommand } from "./explain.js";
 
 const args = process.argv.slice(2);
 
@@ -38,6 +38,10 @@ function valueAfter(flag: string): string | undefined {
 async function main(): Promise<void> {
   if (args.length === 0 || (args.length === 1 && args[0] === "--help")) {
     printHelp();
+    return;
+  }
+  if (args[0] === "explain") {
+    await runExplainCommand(args);
     return;
   }
   if (args[0] === "context" || args[0] === "retrieve") {

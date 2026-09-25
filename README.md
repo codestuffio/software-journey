@@ -2,7 +2,7 @@
 
 Understand a repository through its code, documentation, and history. The planned application turns that evidence into developer onboarding, an interactive reference, and focused context for AI agents.
 
-**Current state:** local committed-HEAD repository snapshots are available from the CLI and can be explored in the browser. Bounded evidence discovery and retrieval are available from the CLI. A five-step authored OpenSpec lesson is available in the explorer; optional model explanations remain planned.
+**Current state:** local committed-HEAD repository snapshots are available from the CLI and can be explored in the browser. Bounded evidence discovery and retrieval are available from the CLI. A five-step authored OpenSpec lesson is available in the explorer; optional explanations require a separate preview and explicit source-sharing approval.
 
 ## Start locally
 
@@ -101,6 +101,35 @@ Both commands return one JSON response on stdout. Valid partial or unavailable e
 
 Retrieval reads only these selected files. It does not need the checkout, run Git, execute captured text, or use a network. Uncaptured source and missing lines stay explicit. Reports describe evidence and byte usage, not semantic answer quality or token savings. See the [pinned retrieval acceptance](docs/acceptance/openspec-retrieval.md).
 
+## Optional assisted explanations
+
+First use a small source selection such as the 20-line request above. Previewing is offline and needs no credential:
+
+```sh
+node apps/cli/dist/index.js explain \
+  --snapshot .software-journey/poc/openspec/snapshot.json \
+  --bundle .software-journey/poc/openspec/workflow/workflow.json \
+  --request .software-journey/retrieve-request.json \
+  > .software-journey/explanation-preview.json
+```
+
+Read the preview's exact `body`, `sources`, destination, and cost estimate. To approve that specific transfer, configure `OPENAI_API_KEY` in your local environment and run the same command with the preview's `approvalDigest`:
+
+```sh
+node apps/cli/dist/index.js explain \
+  --snapshot .software-journey/poc/openspec/snapshot.json \
+  --bundle .software-journey/poc/openspec/workflow/workflow.json \
+  --request .software-journey/retrieve-request.json \
+  --approve 'sha256:PASTE_THE_REVIEWED_APPROVAL_DIGEST' \
+  > .software-journey/explanation-report.json
+```
+
+That second command sends the previewed request to OpenAI and may incur charges. Changing the selection or limits invalidates the digest. Approval is per invocation; deliberately running it again may incur another charge. There are no automatic retries. Ctrl-C cancels waiting, but cannot guarantee that an in-flight charge is reversed.
+
+The pinned model is `gpt-4.1-mini-2025-04-14`. `--max-cost-usd` defaults to `0.01` and accepts `0.0001` through `0.10`; `--max-output-tokens` defaults to `1000` and accepts `128` through `2000`. The cost ceiling is a conservative preflight estimate at pinned published rates, not a billing guarantee. The request deadline is 30 seconds. Selected retrieval output must fit within 32 KiB and contain one to eight source excerpts. History-only and unavailable selections cannot be explained.
+
+Open a successful report with **Open a local explanation report** beneath the lesson. Viewing is local and requires matching artifact identities and excerpts. Generated inferences remain unverified; quoted text must match selected source and citations must resolve to it. See [provider boundaries and official references](packages/explanations/README.md) and [acceptance results](docs/acceptance/assisted-explanations.md). Live provider access and semantic quality have not been tested.
+
 ## Workspace
 
 | Location | Responsibility |
@@ -110,6 +139,7 @@ Retrieval reads only these selected files. It does not need the checkout, run Gi
 | `packages/contracts` | Zod-validated snapshot contract and shared vocabulary |
 | `packages/typescript-config` | Shared strict TypeScript configuration |
 | `packages/repository` | Read-only Git and filesystem analysis boundary |
+| `packages/explanations` | Node-only approved provider request and explanation report |
 | `packages/knowledge` | Deterministic discovery and bounded retrieval over validated artifacts |
 | `openspec/specs` | Delivered capability specifications |
 | `openspec/changes` | Proposed changes and implementation tasks |
@@ -120,7 +150,7 @@ Turborepo coordinates workspace tasks. Vite bundles TanStack Start. **Do not use
 
 ## Spec-driven development
 
-Start with [the product direction](docs/product.md) and [architecture](docs/architecture.md). Completed capabilities are recorded in [the delivered specs](openspec/specs/). The implemented [retrieve-local-evidence change](openspec/changes/archive/2026-09-24-retrieve-local-evidence/proposal.md) is archived; the [roadmap](docs/roadmap.md) tracks the next assisted-explanation feature.
+Start with [the product direction](docs/product.md) and [architecture](docs/architecture.md). Completed capabilities are recorded in [the delivered specs](openspec/specs/). Retrieval, the authored lesson, and optional assisted explanations are archived; the [roadmap](docs/roadmap.md) records delivered scope and remaining evaluation gates.
 
 ```sh
 pnpm spec list

@@ -33,11 +33,13 @@ Software Journey helps developers and AI agents understand a repository from evi
 | --- | --- | --- | --- | --- | --- | --- |
 | R5 | Bounded agent retrieval | An agent can request versioned repository context by area or source reference, with coverage and truncation metadata. | Start with captured documentation and workflow evidence; no MCP transport until the retrieval contract proves useful. | R1, R4 | complete | [`retrieve-local-evidence`](../openspec/changes/archive/2026-09-24-retrieve-local-evidence/) |
 | R6 | Guided learning | A developer can work through evidence-backed tutorial steps and deeper explanations. | Generated explanations remain optional and clearly distinguish facts, quotes, inference, and unknowns. | R3, R4 | complete | [Archived 2026-09-24](../openspec/changes/archive/2026-09-24-learn-openspec-workflow/) |
-| R7 | Optional assisted explanations | A user can approve selected source snippets for a provider-backed explanation with a visible cost and cancellation boundary. | No automatic source transfer, accounts, or multi-tenant service. | R4, R6 | planned | — |
+| R7 | Optional assisted explanations | A user can approve selected source snippets for a provider-backed explanation with a visible cost and cancellation boundary. | No automatic source transfer, accounts, or multi-tenant service. | R4, R6 | complete; simulated-provider validation | [Archived 2026-09-24](../openspec/changes/archive/2026-09-24-explain-selected-evidence/) |
 
-**Exit evidence:** fixed evaluation tasks show that retrieval or assisted explanations preserve answer quality and citation validity. Agent requests expose their revision, coverage, truncation, latency, and cost where applicable.
+**Delivered acceptance:** retrieval preserves selected evidence and byte limits; the authored lesson and optional report viewer pass browser tests; the provider consent and failure paths pass simulated-transport tests.
 
-R5 bounded local retrieval is implemented, verified, and archived. R6 now includes one authored, source-cited OpenSpec lesson. R7 optional assisted explanations is next. R5 acceptance checks evidence correctness and response budgets. Semantic answer quality, historical behavior-change examples, and token or cost comparisons need later evaluation work.
+**Remaining evaluation gate:** controlled live trials must establish semantic answer quality, account costs, and any context savings. The implemented milestones do not establish those outcomes.
+
+R5 bounded local retrieval is implemented, verified, and archived. R6 now includes one authored, source-cited OpenSpec lesson. R7 adds payload-approved optional explanations and local report viewing. Provider tests use simulated responses; no live provider or semantic-quality evaluation has run. R5 acceptance checks evidence correctness and response budgets. Semantic answer quality, historical behavior-change examples, and token or cost comparisons need later evaluation work.
 
 ## Deferred scaling work
 

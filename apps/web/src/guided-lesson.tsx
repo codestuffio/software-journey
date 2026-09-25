@@ -1,7 +1,9 @@
 import type { GuidedLesson } from "@software-journey/contracts";
 import { useState } from "react";
+import { ExplanationReportPanel } from "./explanation-report";
 
 export function GuidedLessonPanel({ lesson }: { lesson: GuidedLesson }) {
+  const [restartKey, setRestartKey] = useState(0);
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [checked, setChecked] = useState<Record<string, boolean>>({});
@@ -14,6 +16,7 @@ export function GuidedLessonPanel({ lesson }: { lesson: GuidedLesson }) {
   ).length;
   const done = completed === 5 && plan.trim().length > 0;
   function restart() {
+    setRestartKey((value) => value + 1);
     setIndex(0);
     setAnswers({});
     setChecked({});
@@ -180,6 +183,7 @@ export function GuidedLessonPanel({ lesson }: { lesson: GuidedLesson }) {
       <button type="button" disabled={!done} onClick={download}>
         Export my plan and citations
       </button>
+      <ExplanationReportPanel key={restartKey} lesson={lesson} />
     </section>
   );
 }
