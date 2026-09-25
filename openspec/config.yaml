@@ -1,7 +1,7 @@
 schema: spec-driven
 context: |
   Software Journey builds repository onboarding and evidence-based reference tools for humans and AI agents.
-  Current state: scaffold only. First implementation is read-only local Git analysis.
+  Current state: local committed-HEAD analysis, browser snapshot exploration, a curated OpenSpec workflow trail, deterministic citation evaluation, and bounded local evidence retrieval are implemented. Guided learning is next.
   Stack: Node 22, pnpm workspaces, Turborepo, React, TypeScript, TanStack Start and Router, Vite, Biome.
   Never use Next.js. Prefer related TanStack packages when needed.
   Local-first; first demo is Fission-AI/OpenSpec at a pinned commit.

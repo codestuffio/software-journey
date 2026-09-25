@@ -1,6 +1,6 @@
 # Architecture
 
-The current implementation contains a TanStack Start local snapshot explorer, a Node CLI for read-only committed-HEAD analysis, and schema-validated shared contracts. Knowledge generation remains a documented boundary awaiting implementation.
+The current implementation contains a TanStack Start local snapshot explorer, a Node CLI for read-only committed-HEAD analysis, and schema-validated shared contracts. The knowledge package provides deterministic discovery and retrieval over validated artifacts. Tutorial generation remains planned.
 
 ## Target flow
 
@@ -22,9 +22,11 @@ The diagram describes the planned product, not current services.
 
 `apps/cli` selects a local checkout and runs analysis. Long-running analysis remains outside request/response handlers. Start with a single local process; move to a worker only when responsiveness and cancellation require it.
 
-`packages/repository` will own Git and filesystem access, exclusions, size limits, history extraction, and stable evidence identifiers. It must not import UI or provider code.
+`packages/repository` owns Git and filesystem access, exclusions, size limits, history extraction, and stable evidence identifiers. Its retrieval loader reads only explicitly supplied regular artifact files under byte limits; it never fills gaps from a checkout. It must not import UI or provider code.
 
-`packages/knowledge` will consume snapshots and produce learning resources and retrieval results. Generated artifacts need model/prompt version, snapshot identity, citations, cost, and coverage metadata. A local JSON store is the proposed first persistence format; SQLite is a later option if query patterns justify it.
+`packages/knowledge` consumes validated snapshots and optional matching workflow bundles to produce versioned discovery manifests and bounded retrieval responses. Selection is deterministic and has no filesystem, process, or network access. The CLI combines artifact loading with selection and publishes a complete JSON response after validation, within a byte budget and a 10-second operation deadline.
+
+Future knowledge generation will produce learning resources. Generated artifacts need model/prompt version, snapshot identity, citations, cost, and coverage metadata. A local JSON store is the proposed first persistence format; SQLite is a later option if query patterns justify it.
 
 `packages/contracts` holds vocabulary and runtime schemas shared between these boundaries. Snapshot writes and browser explorer projections are validated and bounded before they are presented as evidence.
 

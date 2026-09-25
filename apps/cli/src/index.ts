@@ -10,6 +10,8 @@ import {
   writeWorkflowBundle,
 } from "@software-journey/repository";
 
+import { runEvidenceCommand } from "./evidence.js";
+
 const args = process.argv.slice(2);
 
 function printHelp(): void {
@@ -20,6 +22,10 @@ Usage:
   software-journey trace --repository <path> --snapshot <file> --workflow <id> --output <directory>
   software-journey evaluate --repository <path> --snapshot <file> --bundle <file> --output <directory>
 
+  software-journey context --snapshot <file> [--bundle <file>] [--max-bytes <n>] [--offset <n>]
+  software-journey retrieve --snapshot <file> [--bundle <file>] --request <file>
+
+Context and retrieve read local artifacts only, with no checkout, Git, or network access. They return JSON on stdout, including unavailable evidence. Response budgets are 4096-262144 UTF-8 bytes (default 32768); artifact limits are 32 MiB and requests 16 KiB.
 Analyze reads committed HEAD only. It never runs repository code, includes working-tree changes, or sends source content over a network.
 Trace reads only the reviewed workflow catalog's committed paths. Output must be outside the selected checkout. Local artifacts record exclusions, limits, and incomplete history.`);
 }
@@ -32,6 +38,10 @@ function valueAfter(flag: string): string | undefined {
 async function main(): Promise<void> {
   if (args.length === 0 || (args.length === 1 && args[0] === "--help")) {
     printHelp();
+    return;
+  }
+  if (args[0] === "context" || args[0] === "retrieve") {
+    await runEvidenceCommand(args);
     return;
   }
   if (!["analyze", "trace", "evaluate"].includes(args[0] ?? "")) {
