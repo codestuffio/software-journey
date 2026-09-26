@@ -1,6 +1,6 @@
 # Architecture
 
-The current implementation contains a TanStack Start local snapshot explorer, a Node CLI for read-only committed-HEAD analysis, and schema-validated shared contracts. The knowledge package provides deterministic discovery and retrieval over validated artifacts. The knowledge package also assembles a pinned authored lesson from bounded retrieval results. Optional model explanations use a separate approved Node-only operation.
+The current implementation contains a TanStack Start local snapshot explorer with an authored guided-learning view, a Node CLI for read-only committed-HEAD analysis, and schema-validated shared contracts. The knowledge package provides deterministic discovery and retrieval over validated artifacts. The knowledge package also assembles a pinned authored lesson from bounded retrieval results. Optional model explanations use a separate approved Node-only operation.
 
 ## Target flow
 
@@ -23,6 +23,8 @@ The diagram describes the planned product, not current services.
 `apps/cli` selects a local checkout and runs analysis. Long-running analysis remains outside request/response handlers. Start with a single local process; move to a worker only when responsiveness and cancellation require it.
 
 `packages/repository` owns Git and filesystem access, exclusions, size limits, history extraction, and stable evidence identifiers. Its retrieval loader reads only explicitly supplied regular artifact files under byte limits; it never fills gaps from a checkout. It must not import UI or provider code.
+
+The authored tutorial catalog in `apps/web` consumes the local workflow bundle and validates evidence identity, revision, path, and line range. It remains available in the Learning view alongside the checkpoint lesson assembled by the knowledge package.
 
 `packages/knowledge` consumes validated snapshots and optional matching workflow bundles to produce versioned discovery manifests and bounded retrieval responses. Selection is deterministic and has no filesystem, process, or network access. The CLI combines artifact loading with selection and publishes a complete JSON response after validation, within a byte budget and a 10-second operation deadline.
 

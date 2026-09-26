@@ -103,3 +103,39 @@ test("new snapshot selection prevents an old workflow assembly from reappearing"
   await expect(page.locator(".guided-lesson")).toHaveCount(0);
   await expect(page.getByRole("alert")).toBeVisible();
 });
+
+test("learning navigation preserves checkpoint progress and resets with the session", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await load(page);
+  const lesson = page.locator(".guided-lesson");
+  await lesson.getByRole("radio").nth(1).check();
+  await lesson.getByRole("button", { name: "Check answer" }).click();
+  await expect(lesson.getByText(/1 of 5 checkpoints/)).toBeVisible();
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  await expect(
+    page
+      .locator(".learning-panel")
+      .getByRole("heading", { name: "Find the command entry" }),
+  ).toBeVisible();
+  await page
+    .locator(".learning-panel")
+    .getByText("View cited source evidence")
+    .first()
+    .click();
+  await expect(page.locator(".learning-panel pre").first()).toContainText(
+    "Synthetic evidence",
+  );
+  await expect(lesson.getByText(/1 of 5 checkpoints/)).toBeVisible();
+  await page.getByRole("button", { name: "Explore", exact: true }).click();
+  await expect(lesson.getByText(/1 of 5 checkpoints/)).toBeVisible();
+  await page
+    .getByRole("button", { name: "Return to the field-guide sample" })
+    .click();
+  await expect(lesson).toHaveCount(0);
+  await page.getByRole("button", { name: "Learning", exact: true }).click();
+  await expect(page.locator(".learning-panel")).toContainText(
+    "Open a matching workflow trail",
+  );
+});
