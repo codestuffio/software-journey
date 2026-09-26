@@ -166,8 +166,8 @@ Set `OPENSPEC_TELEMETRY=0` to disable OpenSpec's CLI usage telemetry. See [OpenS
 
 Local-first is a product requirement. Imported repositories and generated knowledge belong under ignored `.software-journey/` or `.local/` directories. Optional hosted AI requires explicit approval before selected snippets leave the machine. The consent UI and exclusion rules will be specified before generation is implemented.
 
-No project license has been selected. Packages are private and marked `UNLICENSED` until the owner chooses distribution terms. Third-party dependencies retain their own licenses.
+Software Journey is licensed under the [MIT License](LICENSE). Packages remain private in npm metadata. Third-party dependencies retain their own licenses.
 
 ## GitHub
 
-The intended repository is `codestuffio/software-journey`. The owner will create it manually. See [GitHub setup](docs/github-setup.md) for connecting and pushing this local scaffold.
+The repository is [codestuffio/software-journey](https://github.com/codestuffio/software-journey). See [GitHub setup](docs/github-setup.md) for checkout and CI details.
