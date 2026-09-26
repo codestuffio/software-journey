@@ -470,4 +470,9 @@ export async function retrieveEvidence(
   return retrievalResponseSchema.parse(response);
 }
 
+export {
+  answerContentDigest,
+  canonicalAnswerJson,
+  compareAnswers,
+} from "./answer-evaluation.js";
 export { buildGuidedLesson, lessonCatalog, lessonTarget } from "./lesson.js";

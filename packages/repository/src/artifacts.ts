@@ -10,6 +10,7 @@ export async function readBoundedJson(
   path: string,
   maximumBytes: number,
   signal?: AbortSignal,
+  onBytes?: (bytes: number) => void,
 ): Promise<unknown> {
   signal?.throwIfAborted();
   const handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK);
@@ -29,6 +30,7 @@ export async function readBoundedJson(
       chunks.push(buffer.subarray(0, bytesRead));
     }
     signal?.throwIfAborted();
+    onBytes?.(total);
     const value: unknown = JSON.parse(
       new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
     );

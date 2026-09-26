@@ -9,6 +9,7 @@ import {
   writeSnapshot,
   writeWorkflowBundle,
 } from "@software-journey/repository";
+import { runCompareAnswersCommand } from "./compare-answers.js";
 import { runEvidenceCommand } from "./evidence.js";
 import { runExplainCommand } from "./explain.js";
 
@@ -21,6 +22,8 @@ Usage:
   software-journey analyze --repository <path> --output <directory>
   software-journey trace --repository <path> --snapshot <file> --workflow <id> --output <directory>
   software-journey evaluate --repository <path> --snapshot <file> --bundle <file> --output <directory>
+
+  software-journey compare-answers --benchmark <file> --trials <file> --assessments <file> --evidence <manifest-file> --output <new-directory>
 
   software-journey context --snapshot <file> [--bundle <file>] [--max-bytes <n>] [--offset <n>]
   software-journey retrieve --snapshot <file> [--bundle <file>] --request <file>
@@ -38,6 +41,10 @@ function valueAfter(flag: string): string | undefined {
 async function main(): Promise<void> {
   if (args.length === 0 || (args.length === 1 && args[0] === "--help")) {
     printHelp();
+    return;
+  }
+  if (args[0] === "compare-answers") {
+    await runCompareAnswersCommand(args);
     return;
   }
   if (args[0] === "explain") {

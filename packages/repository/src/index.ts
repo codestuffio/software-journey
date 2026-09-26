@@ -1016,4 +1016,9 @@ export async function writeEvaluationReport(
   }
 }
 
+export { openSpecAnswerBenchmark } from "./answer-benchmark.js";
+export {
+  loadAnswerComparisonInputs,
+  writeAnswerComparisonReport,
+} from "./answer-evaluation.js";
 export { loadEvidenceArtifacts, readBoundedJson } from "./artifacts.js";

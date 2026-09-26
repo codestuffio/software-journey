@@ -34,6 +34,10 @@ Future knowledge generation may produce additional learning resources. Generated
 
 `packages/contracts` holds vocabulary and runtime schemas shared between these boundaries. Snapshot writes and browser explorer projections are validated and bounded before they are presented as evidence.
 
+## Answer comparison
+
+The additive `compare-answers` CLI loads bounded local benchmark, trial, review, and evidence-manifest files through the repository package. Knowledge validates captured citation availability and assembles matched comparisons without filesystem, process, or provider access. Human reviews bind to canonical SHA-256 answer and benchmark digests; they remain supplied judgments. Repository publishes a validated report outside Git checkouts. The command does not run participants or models and does not alter the existing citation evaluator.
+
 ## Data rules for the first implementation
 
 - Identify evidence by repository, commit, path, and optional line range. Track omissions and truncation explicitly.
