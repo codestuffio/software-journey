@@ -41,6 +41,12 @@ Software Journey helps developers and AI agents understand a repository from evi
 
 R5 bounded local retrieval is implemented, verified, and archived. R6 now includes one authored, source-cited OpenSpec lesson. R7 adds payload-approved optional explanations and local report viewing. Provider tests use simulated responses; no live provider or semantic-quality evaluation has run. R5 acceptance checks evidence correctness and response budgets. Semantic answer quality, historical behavior-change examples, and token or cost comparisons need later evaluation work.
 
+## Evaluation stretch: compare recorded answers
+
+The local `compare-answers` command adds a five-question rubric, human review bindings, and paired resource reports. [Trial instructions](answer-evaluation.md) describe local preparation and measurement. The four current OpenSpec questions resolve against captured sources. The historical behavior-change question remains unavailable because historical parser/test code is not captured. Synthetic comparisons validate report behavior only; real participant/provider trials, account costs, and measured savings remain open.
+
+OpenSpec change: [`measure-evidence-answer-quality`](../openspec/changes/archive/2026-09-25-measure-evidence-answer-quality/).
+
 ## Deferred scaling work
 
 | ID | Milestone | Outcome | Scope boundary | Depends on | Status | OpenSpec change |

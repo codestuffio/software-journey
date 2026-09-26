@@ -13,3 +13,7 @@ The UTF-8 response budget includes JSON metadata, escaping, and the final newlin
 A recorded null line range stays unknown. A ranged request cannot use it. When collection may have cut a final line short, ranged retrieval omits that boundary line and reports the gap; whole-capture retrieval preserves the captured text and warning. Byte limits do not estimate tokens or provider costs.
 
 Generated lessons, free-text search, MCP, and provider integration remain future work. See the [retrieval design](../../openspec/changes/archive/2026-09-24-retrieve-local-evidence/design.md) and [acceptance procedure](../../docs/acceptance/openspec-retrieval.md).
+
+## Answer comparison
+
+`compareAnswers` assembles a validated local answer-comparison report from a benchmark, supplied trials, human assessments, and validated evidence inputs. `answerContentDigest` hashes canonical JSON using Web Crypto SHA-256. Citation checks use bounded retrieval; no filesystem or provider access is added. Reviews bind to exact answer/citation and benchmark content. Pair metrics retain their scopes and provenance; unknown tokens/costs stay unknown. See [the trial procedure](../../docs/answer-evaluation.md).

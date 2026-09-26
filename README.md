@@ -60,6 +60,10 @@ node apps/cli/dist/index.js evaluate \
 
 The command writes `evaluation.json` atomically outside the checkout. It neither executes repository code nor sends source or report data over a network.
 
+## Compare recorded answers
+
+Use `compare-answers` to assemble local human assessments and paired direct-exploration/retrieval measurements. It preserves citation checks, review reasons, unknown metrics, and trial provenance. Synthetic or unreviewed results cannot establish quality or savings. Start with [the pilot walkthrough](docs/evaluation-pilot.md), then use [trial preparation and commands](docs/answer-evaluation.md). No model is called.
+
 ## Retrieve captured evidence
 
 After building, discover documentation and workflow evidence from local artifacts:

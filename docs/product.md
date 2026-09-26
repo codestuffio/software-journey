@@ -43,7 +43,7 @@ Keep the checkout outside this source tree or in ignored `.local/repos/`. Record
 
 Start with five fixed questions: project entry point, one command's execution path, the spec governing it, the tests proving it, and an example of behavior changing over history. Curate reference answers against a pinned revision before measuring any model.
 
-Compare direct file/search exploration with generated-context retrieval using the same model, task set, revision, and budgets. Record correctness and citation validity alongside input/output tokens, tool calls, wall-clock time, and cost. Use repeated trials; fewer tokens with a worse answer is a failure. Do not claim savings until measured.
+Compare direct file/search exploration with generated-context retrieval using the same model, task set, revision, and budgets. Record correctness and citation validity alongside input/output tokens, tool calls, wall-clock time, and cost. Use repeated trials; fewer tokens with a worse answer is a failure. Local answer comparison now supports explicit human reviews and metric provenance through `compare-answers`; see [the trial procedure](answer-evaluation.md). Real participant/model quality and savings remain unmeasured. The historical behavior-change case is recorded but unavailable from current captured code coverage. Do not claim savings until measured.
 
 Proposed pilot success: a developer can explain one workflow and identify a safe first change within 15 minutes; all cited paths/revisions resolve; agents preserve answer quality while reducing total context use. These thresholds need a real baseline before becoming release gates.
 

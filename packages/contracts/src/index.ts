@@ -774,3 +774,316 @@ export const explanationPreviewSchema = z
     approvalDigest: contentIdentitySchema,
   })
   .strict();
+
+export const answerEvaluationLimits = {
+  inputBytes: 1048576,
+  evidenceBytes: 134217728,
+  reportBytes: 4194304,
+  cases: 20,
+  trials: 100,
+  deadlineMs: 10000,
+} as const;
+const answerLabel = z.string().trim().min(1).max(512);
+const answerText = z
+  .string()
+  .min(1)
+  .max(65536)
+  .refine((value) => value.trim().length > 0, "Text must not be blank");
+const uniqueStrings = z
+  .array(answerLabel)
+  .min(1)
+  .max(20)
+  .refine((v) => new Set(v).size === v.length, "Duplicate values");
+const answerCitationSchema = sourceReferenceSchema.refine(
+  (v) => v.lines !== null,
+  "Answer citations require line ranges",
+);
+export const answerBenchmarkSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    id: answerLabel,
+    rubricVersion: answerLabel,
+    repositoryId: contentIdentitySchema,
+    revisions: z
+      .array(gitObjectIdSchema)
+      .min(1)
+      .max(4)
+      .refine((v) => new Set(v).size === v.length, "Duplicate revisions"),
+    revisionIdentities: z
+      .array(
+        z
+          .object({
+            repositoryId: contentIdentitySchema,
+            commitSha: gitObjectIdSchema,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(4),
+    cases: z
+      .array(
+        z
+          .object({
+            id: answerLabel,
+            question: answerText,
+            kind: z.enum(["current", "history"]),
+            requiredPoints: uniqueStrings,
+            permittedUncertainty: answerText,
+            expectedCitations: z.array(answerCitationSchema).min(1).max(20),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(answerEvaluationLimits.cases),
+  })
+  .strict()
+  .superRefine((v, ctx) => {
+    if (new Set(v.cases.map((c) => c.id)).size !== v.cases.length)
+      ctx.addIssue({ code: "custom", message: "Duplicate question ID" });
+    if (
+      v.revisionIdentities.length !== v.revisions.length ||
+      new Set(v.revisionIdentities.map((r) => r.commitSha)).size !==
+        v.revisions.length ||
+      v.revisionIdentities.some((r) => !v.revisions.includes(r.commitSha)) ||
+      !v.revisionIdentities.some((r) => r.repositoryId === v.repositoryId)
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Revision identity mapping mismatch",
+      });
+    for (const c of v.cases) {
+      if (
+        c.expectedCitations.some(
+          (s) =>
+            !v.revisionIdentities.some(
+              (r) =>
+                r.repositoryId === s.repositoryId &&
+                r.commitSha === s.commitSha,
+            ),
+        )
+      )
+        ctx.addIssue({
+          code: "custom",
+          message: "Reference identity mismatch",
+        });
+      if (
+        c.kind === "history" &&
+        new Set(c.expectedCitations.map((s) => s.commitSha)).size < 2
+      )
+        ctx.addIssue({
+          code: "custom",
+          message: "History requires before and after citations",
+        });
+    }
+  });
+const answerMetricSchema = z
+  .object({
+    value: z.number().finite().nonnegative(),
+    scope: answerLabel,
+    provenance: answerText,
+  })
+  .strict();
+export const answerMetricsSchema = z
+  .object({
+    elapsedMs: answerMetricSchema.nullable(),
+    toolCalls: answerMetricSchema
+      .extend({ value: z.number().int().nonnegative() })
+      .nullable(),
+    bytes: answerMetricSchema
+      .extend({ value: z.number().int().nonnegative() })
+      .nullable(),
+    tokens: answerMetricSchema
+      .extend({ value: z.number().int().nonnegative() })
+      .nullable(),
+    costUsd: answerMetricSchema.nullable(),
+  })
+  .strict();
+export const answerTrialSchema = z
+  .object({
+    id: answerLabel,
+    caseId: answerLabel,
+    benchmarkDigest: contentIdentitySchema,
+    arm: z.enum(["direct", "retrieval"]),
+    repetitionId: answerLabel,
+    participant: z
+      .object({ kind: z.enum(["human", "model"]), configuration: answerText })
+      .strict(),
+    revisions: z
+      .array(gitObjectIdSchema)
+      .min(1)
+      .max(4)
+      .refine((v) => new Set(v).size === v.length, "Duplicate revisions"),
+    budgets: z
+      .object({
+        contextBytes: z.number().int().positive(),
+        outputTokens: z.number().int().positive(),
+        timeMs: z.number().int().positive(),
+      })
+      .strict(),
+    provenance: z.enum(["synthetic", "real"]),
+    protocolNotes: answerText,
+    answer: z
+      .object({
+        text: answerText,
+        citations: z.array(answerCitationSchema).max(20),
+      })
+      .strict(),
+    metrics: answerMetricsSchema,
+  })
+  .strict();
+export const answerTrialsSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    trials: z.array(answerTrialSchema).max(answerEvaluationLimits.trials),
+  })
+  .strict()
+  .refine(
+    (v) => new Set(v.trials.map((t) => t.id)).size === v.trials.length,
+    "Duplicate trial ID",
+  );
+const assessmentDimensionSchema = z
+  .object({ outcome: z.enum(["pass", "fail"]), reason: answerText })
+  .strict();
+export const answerAssessmentSchema = z
+  .object({
+    trialId: answerLabel,
+    reviewerId: answerLabel,
+    benchmarkDigest: contentIdentitySchema,
+    answerDigest: contentIdentitySchema,
+    rubricVersion: answerLabel,
+    correctness: assessmentDimensionSchema,
+    citationSupport: assessmentDimensionSchema,
+    uncertainty: assessmentDimensionSchema,
+  })
+  .strict();
+export const answerAssessmentsSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    assessments: z
+      .array(answerAssessmentSchema)
+      .max(answerEvaluationLimits.trials),
+  })
+  .strict()
+  .refine(
+    (v) =>
+      new Set(v.assessments.map((a) => a.trialId)).size ===
+      v.assessments.length,
+    "Duplicate assessment",
+  );
+export const answerEvidenceManifestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    artifacts: z
+      .array(
+        z
+          .object({
+            snapshot: answerText,
+            bundle: answerText.nullable(),
+            snapshotIdentity: contentIdentitySchema,
+            bundleIdentity: contentIdentitySchema.nullable(),
+          })
+          .strict()
+          .refine(
+            (v) => (v.bundle === null) === (v.bundleIdentity === null),
+            "Bundle identity required",
+          ),
+      )
+      .min(1)
+      .max(4),
+  })
+  .strict();
+const citationFindingSchema = z
+  .object({
+    source: answerCitationSchema,
+    available: z.boolean(),
+    reasons: z.array(answerLabel).max(40),
+  })
+  .strict();
+const metricDifferenceSchema = z
+  .object({
+    direct: z.number().nonnegative().nullable(),
+    retrieval: z.number().nonnegative().nullable(),
+    difference: z.number().nullable(),
+    reason: answerLabel.nullable(),
+    scope: answerLabel.nullable(),
+  })
+  .strict();
+export const answerComparisonReportSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    benchmarkDigest: contentIdentitySchema,
+    benchmark: answerBenchmarkSchema,
+    evidence: z
+      .array(
+        z
+          .object({
+            repositoryId: contentIdentitySchema,
+            revision: gitObjectIdSchema,
+            snapshotIdentity: contentIdentitySchema,
+            bundleIdentity: contentIdentitySchema.nullable(),
+          })
+          .strict(),
+      )
+      .max(4),
+    cases: z
+      .array(
+        z
+          .object({
+            id: answerLabel,
+            available: z.boolean(),
+            findings: z.array(citationFindingSchema).max(20),
+          })
+          .strict(),
+      )
+      .max(20),
+    trials: z
+      .array(
+        z
+          .object({
+            trial: answerTrialSchema,
+            answerDigest: contentIdentitySchema,
+            assessment: answerAssessmentSchema.nullable(),
+            quality: z.enum(["pass", "fail", "unreviewed", "unavailable"]),
+            findings: z.array(citationFindingSchema).max(20),
+          })
+          .strict(),
+      )
+      .max(100),
+    pairs: z
+      .array(
+        z
+          .object({
+            directId: answerLabel.nullable(),
+            retrievalId: answerLabel.nullable(),
+            eligible: z.boolean(),
+            reasons: z.array(answerLabel).max(20),
+            metrics: z
+              .object({
+                elapsedMs: metricDifferenceSchema,
+                toolCalls: metricDifferenceSchema,
+                bytes: metricDifferenceSchema,
+                tokens: metricDifferenceSchema,
+                costUsd: metricDifferenceSchema,
+              })
+              .strict(),
+          })
+          .strict(),
+      )
+      .max(100),
+    counts: z
+      .object({
+        trials: z.number().int().nonnegative(),
+        pairs: z.number().int().nonnegative(),
+        eligiblePairs: z.number().int().nonnegative(),
+        unpairedTrials: z.number().int().nonnegative(),
+      })
+      .strict(),
+    limitations: z.array(answerText).min(1).max(20),
+  })
+  .strict();
+export type AnswerBenchmark = z.infer<typeof answerBenchmarkSchema>;
+export type AnswerTrial = z.infer<typeof answerTrialSchema>;
+export type AnswerAssessment = z.infer<typeof answerAssessmentSchema>;
+export type AnswerComparisonReport = z.infer<
+  typeof answerComparisonReportSchema
+>;
