@@ -2,7 +2,7 @@
 
 Understand a repository through its code, documentation, and history. The planned application turns that evidence into developer onboarding, an interactive reference, and focused context for AI agents.
 
-**Current state:** local committed-HEAD repository snapshots are available from the CLI and can be explored in the browser. Guided tutorial generation remains planned.
+**Current state:** local committed-HEAD repository snapshots are available from the CLI and can be explored in the browser. Bounded evidence discovery and retrieval are available from the CLI. A five-step authored OpenSpec lesson is available in the explorer; optional explanations require a separate preview and explicit source-sharing approval.
 
 ## Start locally
 
@@ -42,6 +42,94 @@ Open [localhost:3000](http://localhost:3000), choose **Open a local snapshot**, 
 
 The built-in field-guide sample is synthetic. Keep real snapshots—including the OpenSpec POC—under ignored `.software-journey/` or `.local/` directories.
 
+## Learn one workflow
+
+Load the pinned OpenSpec snapshot and matching workflow bundle to open **Your first OpenSpec change**. Follow the five cited evidence steps, answer checkpoints, and draft a first-change plan. You can export your plan and citations locally. Restart or replace an artifact to clear progress. Unsupported revisions and incomplete evidence stay explicit. See [lesson acceptance](docs/acceptance/openspec-lesson.md).
+
+## Evaluate a pinned workflow
+
+The first evaluator is deliberately narrow: it checks five reviewed OpenSpec onboarding questions against a matching snapshot and workflow bundle. It validates immutable source citations and records `passed`, `failed`, or `unavailable` without generating or grading prose.
+
+```sh
+node apps/cli/dist/index.js evaluate \
+  --repository /Users/you/src/OpenSpec \
+  --snapshot /Users/you/.software-journey/openspec/snapshot.json \
+  --bundle /Users/you/.software-journey/openspec/workflow/workflow.json \
+  --output /Users/you/.software-journey/openspec/evaluation
+```
+
+The command writes `evaluation.json` atomically outside the checkout. It neither executes repository code nor sends source or report data over a network.
+
+## Retrieve captured evidence
+
+After building, discover documentation and workflow evidence from local artifacts:
+
+```sh
+node apps/cli/dist/index.js context \
+  --snapshot .software-journey/poc/openspec/snapshot.json \
+  --bundle .software-journey/poc/openspec/workflow/workflow.json \
+  --max-bytes 4096
+```
+
+Use `nextOffset` with `--offset` to continue discovery over the same artifact identities. The bundle is optional. The manifest describes captured evidence; inventory counts do not imply every source file was captured.
+
+Save this request as `.software-journey/retrieve-request.json`:
+
+```json
+{
+  "schemaVersion": 1,
+  "maxBytes": 4096,
+  "selector": {
+    "type": "step",
+    "workflowId": "openspec-new-change",
+    "stepId": "implementation",
+    "lines": { "start": 1, "end": 20 }
+  }
+}
+```
+
+```sh
+node apps/cli/dist/index.js retrieve \
+  --snapshot .software-journey/poc/openspec/snapshot.json \
+  --bundle .software-journey/poc/openspec/workflow/workflow.json \
+  --request .software-journey/retrieve-request.json
+```
+
+For an exact path, use `{"type":"path","path":"README.md"}` as the selector. A source selector adds `type: "source"`, `repositoryId`, and `commitSha` to the path and optional lines. Workflow history steps return commit metadata and do not accept line ranges.
+
+Both commands return one JSON response on stdout. Valid partial or unavailable evidence exits zero; invalid flags, inputs, identity mismatches, cancellation, and budget errors exit nonzero with diagnostics on stderr. The complete response, including metadata and newline, defaults to 32,768 UTF-8 bytes; supported budgets are 4,096–262,144 bytes. Artifact inputs are limited to 32 MiB each and request files to 16 KiB. Operations have a 10-second deadline.
+
+Retrieval reads only these selected files. It does not need the checkout, run Git, execute captured text, or use a network. Uncaptured source and missing lines stay explicit. Reports describe evidence and byte usage, not semantic answer quality or token savings. See the [pinned retrieval acceptance](docs/acceptance/openspec-retrieval.md).
+
+## Optional assisted explanations
+
+First use a small source selection such as the 20-line request above. Previewing is offline and needs no credential:
+
+```sh
+node apps/cli/dist/index.js explain \
+  --snapshot .software-journey/poc/openspec/snapshot.json \
+  --bundle .software-journey/poc/openspec/workflow/workflow.json \
+  --request .software-journey/retrieve-request.json \
+  > .software-journey/explanation-preview.json
+```
+
+Read the preview's exact `body`, `sources`, destination, and cost estimate. To approve that specific transfer, configure `OPENAI_API_KEY` in your local environment and run the same command with the preview's `approvalDigest`:
+
+```sh
+node apps/cli/dist/index.js explain \
+  --snapshot .software-journey/poc/openspec/snapshot.json \
+  --bundle .software-journey/poc/openspec/workflow/workflow.json \
+  --request .software-journey/retrieve-request.json \
+  --approve 'sha256:PASTE_THE_REVIEWED_APPROVAL_DIGEST' \
+  > .software-journey/explanation-report.json
+```
+
+That second command sends the previewed request to OpenAI and may incur charges. Changing the selection or limits invalidates the digest. Approval is per invocation; deliberately running it again may incur another charge. There are no automatic retries. Ctrl-C cancels waiting, but cannot guarantee that an in-flight charge is reversed.
+
+The pinned model is `gpt-4.1-mini-2025-04-14`. `--max-cost-usd` defaults to `0.01` and accepts `0.0001` through `0.10`; `--max-output-tokens` defaults to `1000` and accepts `128` through `2000`. The cost ceiling is a conservative preflight estimate at pinned published rates, not a billing guarantee. The request deadline is 30 seconds. Selected retrieval output must fit within 32 KiB and contain one to eight source excerpts. History-only and unavailable selections cannot be explained.
+
+Open a successful report with **Open a local explanation report** beneath the lesson. Viewing is local and requires matching artifact identities and excerpts. Generated inferences remain unverified; quoted text must match selected source and citations must resolve to it. See [provider boundaries and official references](packages/explanations/README.md) and [acceptance results](docs/acceptance/assisted-explanations.md). Live provider access and semantic quality have not been tested.
+
 ## Workspace
 
 | Location | Responsibility |
@@ -51,7 +139,8 @@ The built-in field-guide sample is synthetic. Keep real snapshots—including th
 | `packages/contracts` | Zod-validated snapshot contract and shared vocabulary |
 | `packages/typescript-config` | Shared strict TypeScript configuration |
 | `packages/repository` | Read-only Git and filesystem analysis boundary |
-| `packages/knowledge` | Reserved retrieval/generation boundary, documentation only for now |
+| `packages/explanations` | Node-only approved provider request and explanation report |
+| `packages/knowledge` | Deterministic discovery and bounded retrieval over validated artifacts |
 | `openspec/specs` | Delivered capability specifications |
 | `openspec/changes` | Proposed changes and implementation tasks |
 | `docs` | Product direction, architecture, decisions, and research |
@@ -61,11 +150,11 @@ Turborepo coordinates workspace tasks. Vite bundles TanStack Start. **Do not use
 
 ## Spec-driven development
 
-Start with [the product direction](docs/product.md) and [architecture](docs/architecture.md). The active explorer change is [explore-local-snapshot](openspec/changes/explore-local-snapshot/proposal.md).
+Start with [the product direction](docs/product.md) and [architecture](docs/architecture.md). Completed capabilities are recorded in [the delivered specs](openspec/specs/). Retrieval, the authored lesson, and optional assisted explanations are archived; the [roadmap](docs/roadmap.md) records delivered scope and remaining evaluation gates.
 
 ```sh
 pnpm spec list
-pnpm spec status --change explore-local-snapshot
+pnpm spec list --specs
 pnpm spec:validate
 ```
 

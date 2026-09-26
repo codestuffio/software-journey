@@ -1,6 +1,6 @@
 # Architecture
 
-The current implementation contains a TanStack Start local snapshot explorer with an authored guided-learning view, a Node CLI for read-only committed-HEAD analysis, and schema-validated shared contracts. Model-based knowledge generation remains a documented boundary awaiting implementation.
+The current implementation contains a TanStack Start local snapshot explorer with an authored guided-learning view, a Node CLI for read-only committed-HEAD analysis, and schema-validated shared contracts. The knowledge package provides deterministic discovery and retrieval over validated artifacts. The knowledge package also assembles a pinned authored lesson from bounded retrieval results. Optional model explanations use a separate approved Node-only operation.
 
 ## Target flow
 
@@ -22,9 +22,15 @@ The diagram describes the planned product, not current services.
 
 `apps/cli` selects a local checkout and runs analysis. Long-running analysis remains outside request/response handlers. Start with a single local process; move to a worker only when responsiveness and cancellation require it.
 
-`packages/repository` will own Git and filesystem access, exclusions, size limits, history extraction, and stable evidence identifiers. It must not import UI or provider code.
+`packages/repository` owns Git and filesystem access, exclusions, size limits, history extraction, and stable evidence identifiers. Its retrieval loader reads only explicitly supplied regular artifact files under byte limits; it never fills gaps from a checkout. It must not import UI or provider code.
 
-The first authored tutorial catalog lives in `apps/web` and consumes the existing local workflow bundle. Its citation check validates evidence identity, revision, path, and line range. `packages/knowledge` remains reserved for broader learning resources and retrieval results. Future generated artifacts need model/prompt version, snapshot identity, citations, cost, and coverage metadata. A local JSON store is the proposed first persistence format; SQLite is a later option if query patterns justify it.
+The authored tutorial catalog in `apps/web` consumes the local workflow bundle and validates evidence identity, revision, path, and line range. It remains available in the Learning view alongside the checkpoint lesson assembled by the knowledge package.
+
+`packages/knowledge` consumes validated snapshots and optional matching workflow bundles to produce versioned discovery manifests and bounded retrieval responses. Selection is deterministic and has no filesystem, process, or network access. The CLI combines artifact loading with selection and publishes a complete JSON response after validation, within a byte budget and a 10-second operation deadline.
+
+`packages/explanations` owns the optional OpenAI call. The CLI first previews selected evidence and limits offline, then requires a matching approval digest before reading an API credential and sending that exact request. It does not follow redirects or retry. The browser can inspect a matching local report but never holds credentials or calls a provider. All model blocks remain labeled unverified interpretation.
+
+Future knowledge generation may produce additional learning resources. Generated artifacts need model/prompt version, snapshot identity, citations, cost, and coverage metadata. A local JSON store is the proposed first persistence format; SQLite is a later option if query patterns justify it.
 
 `packages/contracts` holds vocabulary and runtime schemas shared between these boundaries. Snapshot writes and browser explorer projections are validated and bounded before they are presented as evidence.
 

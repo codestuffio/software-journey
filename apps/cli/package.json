@@ -12,7 +12,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@software-journey/repository": "workspace:*"
+    "@software-journey/repository": "workspace:*",
+    "@software-journey/knowledge": "workspace:*",
+    "@software-journey/contracts": "workspace:*",
+    "@software-journey/explanations": "workspace:*"
   },
   "devDependencies": {
     "@software-journey/typescript-config": "workspace:*",

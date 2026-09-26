@@ -22,20 +22,24 @@ Software Journey helps developers and AI agents understand a repository from evi
 | ID | Milestone | Outcome | Scope boundary | Depends on | Status | OpenSpec change |
 | --- | --- | --- | --- | --- | --- | --- |
 | R2 | Snapshot explorer | A developer can open a local snapshot, browse repository and documentation evidence, and inspect cited paths. | No generated tutorial content or agent-facing protocol. | R1 | complete | [`Archived 2026-09-20`](../openspec/changes/archive/2026-09-20-explore-local-snapshot/) |
-| R3 | Workflow trail | A developer can follow one real workflow through entry point, specification, implementation, tests, and selected history. | One curated workflow per snapshot; no broad architecture inference claims. | R2 | in progress | [`trace-openspec-change-workflow`](../openspec/changes/trace-openspec-change-workflow/) |
-| R4 | Evidence evaluation baseline | The project can measure citation validity and answer quality for fixed repository questions. | Evaluation harness and curated answers only; no provider integration required. | R1, R3 | planned | — |
+| R3 | Workflow trail | A developer can follow one real workflow through entry point, specification, implementation, tests, and selected history. | One curated workflow per snapshot; no broad architecture inference claims. | R2 | complete | [`Archived 2026-09-22`](../openspec/changes/archive/2026-09-22-trace-openspec-change-workflow/) |
+| R4 | Evidence evaluation baseline | The project can check expected evidence availability and citation metadata for five fixed repository questions. | Evaluation harness and curated answers only; no provider integration required. | R1, R3 | complete | [`Archived 2026-09-24`](../openspec/changes/archive/2026-09-24-evidence-evaluation-baseline/) |
 
-**Exit evidence:** the pinned OpenSpec demonstration supports a developer tracing one workflow in the interface. The evaluation set records expected answers and resolvable evidence at a fixed revision.
+**Exit evidence:** the pinned OpenSpec demonstration supports a developer tracing one workflow in the interface. The evaluation set records expected source references at a fixed revision. It checks citation metadata and evidence availability; semantic answer quality and behavior changes over history remain unmeasured.
 
 ## Later: assist learning and agent work
 
 | ID | Milestone | Outcome | Scope boundary | Depends on | Status | OpenSpec change |
 | --- | --- | --- | --- | --- | --- | --- |
-| R5 | Bounded agent retrieval | An agent can request versioned repository context by area or source reference, with coverage and truncation metadata. | No MCP transport until the retrieval contract proves useful. | R1, R4 | planned | — |
-| R6 | Guided learning | A developer can work through evidence-backed tutorial steps and deeper explanations. | Generated explanations remain optional and clearly distinguish facts, quotes, inference, and unknowns. | R3, R4 | planned | — |
-| R7 | Optional assisted explanations | A user can approve selected source snippets for a provider-backed explanation with a visible cost and cancellation boundary. | No automatic source transfer, accounts, or multi-tenant service. | R4, R6 | planned | — |
+| R5 | Bounded agent retrieval | An agent can request versioned repository context by area or source reference, with coverage and truncation metadata. | Start with captured documentation and workflow evidence; no MCP transport until the retrieval contract proves useful. | R1, R4 | complete | [`retrieve-local-evidence`](../openspec/changes/archive/2026-09-24-retrieve-local-evidence/) |
+| R6 | Guided learning | A developer can work through evidence-backed tutorial steps and deeper explanations. | Generated explanations remain optional and clearly distinguish facts, quotes, inference, and unknowns. | R3, R4 | complete | [Archived 2026-09-24](../openspec/changes/archive/2026-09-24-learn-openspec-workflow/) |
+| R7 | Optional assisted explanations | A user can approve selected source snippets for a provider-backed explanation with a visible cost and cancellation boundary. | No automatic source transfer, accounts, or multi-tenant service. | R4, R6 | complete; simulated-provider validation | [Archived 2026-09-24](../openspec/changes/archive/2026-09-24-explain-selected-evidence/) |
 
-**Exit evidence:** fixed evaluation tasks show that retrieval or assisted explanations preserve answer quality and citation validity. Agent requests expose their revision, coverage, truncation, latency, and cost where applicable.
+**Delivered acceptance:** retrieval preserves selected evidence and byte limits; the authored lesson and optional report viewer pass browser tests; the provider consent and failure paths pass simulated-transport tests.
+
+**Remaining evaluation gate:** controlled live trials must establish semantic answer quality, account costs, and any context savings. The implemented milestones do not establish those outcomes.
+
+R5 bounded local retrieval is implemented, verified, and archived. R6 now includes one authored, source-cited OpenSpec lesson. R7 adds payload-approved optional explanations and local report viewing. Provider tests use simulated responses; no live provider or semantic-quality evaluation has run. R5 acceptance checks evidence correctness and response budgets. Semantic answer quality, historical behavior-change examples, and token or cost comparisons need later evaluation work.
 
 ## Deferred scaling work
 

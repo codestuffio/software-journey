@@ -1,17 +1,20 @@
 import {
   createExplorerProjection,
   type ExplorerProjection,
+  type GuidedLesson,
+  type Snapshot,
   type WorkflowExplorerProjection,
 } from "@software-journey/contracts";
+import { buildGuidedLesson } from "@software-journey/knowledge";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
-
 import { demoSnapshot } from "../demo-snapshot";
+import { GuidedLessonPanel } from "../guided-lesson";
 import {
   findLearningCatalog,
   resolveLearningCitation,
 } from "../learning-catalog";
-import { loadSelectedSnapshot, loadSelectedWorkflow } from "../snapshot-loader";
+import { loadSelectedWorkflow, loadSnapshotSession } from "../snapshot-loader";
 
 export const Route = createFileRoute("/")({
   ssr: "data-only",
@@ -43,6 +46,10 @@ function coverageLabel(projection: ExplorerProjection) {
 }
 
 function Home() {
+  const pending = useRef(new AbortController());
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [lesson, setLesson] = useState<GuidedLesson | null>(null);
+  const [lessonError, setLessonError] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
   const workflowPicker = useRef<HTMLInputElement>(null);
   const [projection, setProjection] = useState<ExplorerProjection | null>(
@@ -59,6 +66,7 @@ function Home() {
   );
   const [workflowError, setWorkflowError] = useState<string | null>(null);
   const [selectedStep, setSelectedStep] = useState<string | null>(null);
+
   const [mode, setMode] = useState<"explore" | "learning">("explore");
   const [selectedLesson, setSelectedLesson] = useState<string | null>(null);
 
@@ -93,20 +101,32 @@ function Home() {
   async function selectSnapshot(file: File | undefined) {
     if (!file) return;
 
+    pending.current.abort();
+    pending.current = new AbortController();
+    const signal = pending.current.signal;
+    setSelectedLesson(null);
+    setMode("explore");
+    setSnapshot(null);
+    setLesson(null);
+    setLessonError(null);
+    setWorkflow(null);
     setError(null);
     setProjection(null);
     setSelectedPath(null);
     setFilter("");
 
     try {
-      const next = await loadSelectedSnapshot(file);
+      const session = await loadSnapshotSession(file);
+      if (signal.aborted) return;
+      const next = session.projection;
+      setSnapshot(session.snapshot);
       setProjection(next);
       setSessionName(file.name);
       setSelectedPath(next.documentation[0]?.source.path ?? null);
       setWorkflow(null);
       setWorkflowError(null);
-      setMode("explore");
     } catch (cause) {
+      if (signal.aborted) return;
       setError(
         cause instanceof Error
           ? cause.message
@@ -117,9 +137,18 @@ function Home() {
 
   async function selectWorkflow(file: File | undefined) {
     if (!file || !projection) return;
+    pending.current.abort();
+    pending.current = new AbortController();
+    const signal = pending.current.signal;
+    setLesson(null);
+    setLessonError(null);
+    setWorkflow(null);
     setWorkflowError(null);
+    setSelectedStep(null);
+    setSelectedLesson(null);
     try {
       const next = await loadSelectedWorkflow(file);
+      if (signal.aborted) return;
       if (
         next.snapshot.repository.id !== projection.repository.id ||
         next.snapshot.repository.headCommit !== projection.repository.headCommit
@@ -131,10 +160,23 @@ function Home() {
       setWorkflow(next);
       setSelectedStep(next.steps[0]?.id ?? null);
       setSelectedLesson(findLearningCatalog(next)?.steps[0]?.id ?? null);
+      if (snapshot) {
+        try {
+          const assembled = await buildGuidedLesson(
+            snapshot,
+            JSON.parse(await file.text()),
+            signal,
+          );
+          if (!signal.aborted) setLesson(assembled);
+        } catch (cause) {
+          if (!signal.aborted)
+            setLessonError(
+              cause instanceof Error ? cause.message : "Lesson unavailable.",
+            );
+        }
+      }
     } catch (cause) {
-      setWorkflow(null);
-      setSelectedStep(null);
-      setSelectedLesson(null);
+      if (signal.aborted) return;
       setWorkflowError(
         cause instanceof Error
           ? cause.message
@@ -144,6 +186,12 @@ function Home() {
   }
 
   function restoreSample() {
+    pending.current.abort();
+    setSelectedLesson(null);
+    setMode("explore");
+    setSnapshot(null);
+    setLesson(null);
+    setLessonError(null);
     setProjection(demoProjection);
     setSessionName("Field-guide sample");
     setError(null);
@@ -152,8 +200,6 @@ function Home() {
     setWorkflow(null);
     setWorkflowError(null);
     setSelectedStep(null);
-    setSelectedLesson(null);
-    setMode("explore");
   }
 
   return (
@@ -679,6 +725,14 @@ function Home() {
               </section>
             </>
           )}
+          {lesson ? (
+            <GuidedLessonPanel
+              key={`${lesson.snapshotIdentity}:${lesson.bundleIdentity}`}
+              lesson={lesson}
+            />
+          ) : lessonError ? (
+            <p role="status">Guided lesson unavailable: {lessonError}</p>
+          ) : null}
         </>
       ) : null}
 

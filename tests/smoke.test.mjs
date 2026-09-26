@@ -23,6 +23,10 @@ test("compiled CLI reports its limits and rejects unavailable commands", () => {
       /analyze --repository <path> --output <directory>/,
     );
     assert.match(result.stdout, /trace --repository <path> --snapshot <file>/);
+    assert.match(
+      result.stdout,
+      /evaluate --repository <path> --snapshot <file>/,
+    );
   }
   const result = spawnSync(
     process.execPath,
@@ -42,6 +46,14 @@ test("compiled CLI reports its limits and rejects unavailable commands", () => {
   );
   assert.equal(incompleteTrace.status, 1);
   assert.match(incompleteTrace.stderr, /Trace requires/);
+
+  const incompleteEvaluation = spawnSync(
+    process.execPath,
+    ["apps/cli/dist/index.js", "evaluate"],
+    { cwd: root, encoding: "utf8" },
+  );
+  assert.equal(incompleteEvaluation.status, 1);
+  assert.match(incompleteEvaluation.stderr, /Evaluate requires/);
 });
 
 test("production web server renders the shell and serves its assets", {

@@ -4,6 +4,7 @@ import {
   createExplorerProjection,
   createWorkflowExplorerProjection,
   explorerLimits,
+  validateEvaluationReportForWrite,
   validateSnapshotForWrite,
   validateWorkflowBundleForWrite,
 } from "../packages/contracts/src/index.ts";
@@ -65,6 +66,28 @@ test("snapshot write validation accepts a traceable versioned snapshot", () => {
 
   expect(snapshot.schemaVersion).toBe(1);
   expect(snapshot.documentation[0]?.source.lines?.start).toBe(1);
+});
+
+test("evaluation reports require bounded cited outcomes", () => {
+  const report = validateEvaluationReportForWrite({
+    schemaVersion: 1,
+    repository: validSnapshot().repository,
+    catalogId: "demo",
+    evaluatedAt: "2026-09-20T00:00:01.000Z",
+    results: [
+      {
+        caseId: "entry",
+        status: "passed",
+        expectedSource: validSnapshot().documentation[0]?.source,
+        observedSource: validSnapshot().documentation[0]?.source,
+      },
+    ],
+    omissions: [],
+  });
+  expect(report.results[0]?.status).toBe("passed");
+  expect(() =>
+    validateEvaluationReportForWrite({ ...report, results: [] }),
+  ).toThrow();
 });
 
 test("workflow bundles keep source evidence bounded and revision-pinned", () => {
