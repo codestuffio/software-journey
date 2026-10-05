@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { expect, test } from "vitest";
 
@@ -435,6 +436,31 @@ test("overlapping selections must agree on path, blob, line count and exact line
     ),
   ])
     await expect(validateSourceCapture(artifact, snapshot)).rejects.toThrow();
+});
+
+test("malformed enormous spans reject within a bounded child process", () => {
+  const artifact = fixture();
+  const second = { path: "src/other.ts", lines: { start: 1, end: 1 } };
+  const entry = {
+    ...required(artifact.entries[0]),
+    actualRange: { start: 1, end: Number.MAX_SAFE_INTEGER },
+  };
+  const malformed = assembled(
+    [entry, { ...entry, selection: second }],
+    artifact.blobs,
+  );
+  // A synchronous regression could block the test worker's own timeout.
+  const contractsUrl = new URL(
+    "../packages/contracts/dist/index.js",
+    import.meta.url,
+  ).href;
+  const probe = `import { sourceCaptureSchema } from ${JSON.stringify(contractsUrl)};
+    if (sourceCaptureSchema.safeParse(${JSON.stringify(malformed)}).success) process.exit(1);`;
+  expect(() =>
+    execFileSync(process.execPath, ["--input-type=module", "-e", probe], {
+      timeout: 2000,
+    }),
+  ).not.toThrow();
 });
 
 test("whole-file captures return exactly the recorded blob bytes", async () => {

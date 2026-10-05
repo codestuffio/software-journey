@@ -349,15 +349,22 @@ export const sourceCaptureSchema = z
             lines.push("");
           const previousCaptures = captures.get(entry.blobId) ?? [];
           for (const previous of previousCaptures) {
-            const start = Math.max(
-              entry.actualRange.start,
-              previous.range.start,
+            // Refinement errors do not stop Zod's outer refinements. Bound
+            // work by retained lines, even when declared spans are malformed.
+            const startOffset = Math.max(
+              0,
+              previous.range.start - entry.actualRange.start,
             );
-            const end = Math.min(entry.actualRange.end, previous.range.end);
-            for (let line = start; line <= end; line++) {
+            const endOffset = Math.min(
+              lines.length,
+              previous.range.end - entry.actualRange.start + 1,
+            );
+            for (let offset = startOffset; offset < endOffset; offset++) {
               if (
-                lines[line - entry.actualRange.start] !==
-                previous.lines[line - previous.range.start]
+                lines[offset] !==
+                previous.lines[
+                  entry.actualRange.start + offset - previous.range.start
+                ]
               ) {
                 invalid(
                   "Overlapping selections of one blob must contain identical source lines",
