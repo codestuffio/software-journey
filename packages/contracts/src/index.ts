@@ -1087,3 +1087,19 @@ export type AnswerAssessment = z.infer<typeof answerAssessmentSchema>;
 export type AnswerComparisonReport = z.infer<
   typeof answerComparisonReportSchema
 >;
+
+export {
+  type SourceCapture,
+  type SourceCaptureEntry,
+  type SourceCaptureRequest,
+  type SourceCaptureSelection,
+  sourceCaptureContentIdentity,
+  sourceCaptureEntrySchema,
+  sourceCaptureLimits,
+  sourceCaptureReasonSchema,
+  sourceCaptureRequestSchema,
+  sourceCaptureSchema,
+  sourceCaptureSelectionSchema,
+  sourceTextDigest,
+  validateSourceCapture,
+} from "./source-capture.js";
