@@ -39,6 +39,11 @@ export async function loadAnswerComparisonInputs(
   const manifest = answerEvidenceManifestSchema.parse(
     await read(paths.evidence),
   );
+  if (
+    manifest.schemaVersion === 2 &&
+    manifest.artifacts.some((entry) => entry.sources != null)
+  )
+    throw new Error("Selected-source answer comparison is not implemented");
   const base = dirname(resolve(paths.evidence));
   let remaining: number = answerEvaluationLimits.evidenceBytes;
   const evidence = [];

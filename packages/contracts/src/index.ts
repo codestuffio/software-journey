@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  type SourceCapture,
+  sourceCaptureSchema,
+  validateSourceCapture,
+} from "./source-capture.js";
 
 const gitObjectIdSchema = z.string().regex(/^[0-9a-f]{40,64}$/u);
 const contentIdentitySchema = z.string().regex(/^sha256:[0-9a-f]{64}$/u);
@@ -421,37 +426,78 @@ const availabilitySchema = z.enum(["available", "partial", "unavailable"]);
 const nonnegativeInteger = z.number().int().nonnegative().safe();
 const itemBase = {
   id: z.string().min(1),
-  origin: z.enum(["documentation", "workflow"]),
+  origin: z.enum(["documentation", "workflow", "selected-source"]),
+  sourcesIdentity: contentIdentitySchema.optional(),
   status: availabilitySchema,
   reasons: z.array(z.string()),
 };
-export const retrievalItemSchema = z.discriminatedUnion("type", [
-  z
-    .object({
-      ...itemBase,
-      type: z.literal("source"),
-      contentId: contentIdentitySchema,
-      source: sourceReferenceSchema,
-      text: z.string().min(1),
-      missingRanges: z.array(lineRangeSchema),
-      omittedLines: nonnegativeInteger,
-    })
-    .strict(),
-  z
-    .object({
-      ...itemBase,
-      type: z.literal("history"),
-      commit: commitMetadataSchema,
-    })
-    .strict(),
-  z
-    .object({
-      ...itemBase,
-      type: z.literal("unavailable"),
-      missingRanges: z.array(lineRangeSchema),
-    })
-    .strict(),
-]);
+function checkSelectedSourceOrigin(
+  item: { origin: string; sourcesIdentity?: string | undefined },
+  ctx: z.RefinementCtx,
+) {
+  if (
+    (item.origin === "selected-source") !==
+    (item.sourcesIdentity !== undefined)
+  )
+    ctx.addIssue({
+      code: "custom",
+      message: "Selected-source origin requires its artifact identity",
+    });
+}
+export const retrievalItemSchema = z
+  .discriminatedUnion("type", [
+    z
+      .object({
+        ...itemBase,
+        type: z.literal("source"),
+        contentId: contentIdentitySchema,
+        source: sourceReferenceSchema,
+        text: z.string(),
+        missingRanges: z.array(lineRangeSchema),
+        omittedLines: nonnegativeInteger,
+      })
+      .strict(),
+    z
+      .object({
+        ...itemBase,
+        type: z.literal("history"),
+        commit: commitMetadataSchema,
+      })
+      .strict(),
+    z
+      .object({
+        ...itemBase,
+        type: z.literal("unavailable"),
+        missingRanges: z.array(lineRangeSchema),
+      })
+      .strict(),
+  ])
+  .superRefine((item, ctx) => {
+    checkSelectedSourceOrigin(item, ctx);
+    if (item.type === "source" && item.text.length === 0) {
+      if (item.origin !== "selected-source")
+        ctx.addIssue({
+          code: "too_small",
+          origin: "string",
+          minimum: 1,
+          inclusive: true,
+          path: ["text"],
+        });
+      else if (
+        !item.source.lines ||
+        item.source.lines.start !== item.source.lines.end
+      )
+        ctx.addIssue({
+          code: "custom",
+          message: "Empty selected source must identify one captured line",
+        });
+    }
+    if (item.origin === "selected-source" && item.type === "history")
+      ctx.addIssue({
+        code: "custom",
+        message: "Selected-source captures cannot contain history metadata",
+      });
+  });
 export type RetrievalItem = z.infer<typeof retrievalItemSchema>;
 export const evidenceDescriptorSchema = z
   .object({
@@ -461,7 +507,18 @@ export const evidenceDescriptorSchema = z
     commitSha: gitObjectIdSchema.nullable(),
     label: z.string().nullable(),
   })
-  .strict();
+  .strict()
+  .superRefine((item, ctx) => {
+    checkSelectedSourceOrigin(item, ctx);
+    if (
+      item.origin === "selected-source" &&
+      (item.selector.type === "step" || item.commitSha !== null)
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Selected-source captures require path/source selectors",
+      });
+  });
 export type EvidenceDescriptor = z.infer<typeof evidenceDescriptorSchema>;
 const responseBase = {
   schemaVersion: z.literal(1),
@@ -470,6 +527,7 @@ const responseBase = {
     .object({
       snapshot: contentIdentitySchema,
       bundle: contentIdentitySchema.nullable(),
+      sources: contentIdentitySchema.optional(),
     })
     .strict(),
   status: availabilitySchema,
@@ -480,6 +538,7 @@ const responseBase = {
       documentation: coverageSchema.shape.documentation,
       history: coverageSchema.shape.history,
       workflowSteps: nonnegativeInteger,
+      selectedSources: sourceCaptureSchema.shape.coverage.optional(),
       totalOmissions: nonnegativeInteger,
       relevantOmissions: nonnegativeInteger,
       omissions: z.array(omissionSchema),
@@ -495,6 +554,33 @@ const responseBase = {
     })
     .strict(),
 };
+function checkSelectedSourceResponse(
+  response: {
+    inputs: { sources?: string | undefined };
+    coverage: { selectedSources?: unknown };
+    items: { origin: string; sourcesIdentity?: string | undefined }[];
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (
+    (response.inputs.sources !== undefined) !==
+    (response.coverage.selectedSources !== undefined)
+  )
+    ctx.addIssue({
+      code: "custom",
+      message: "Selected-source input requires coverage",
+    });
+  for (const item of response.items) {
+    if (
+      item.origin === "selected-source" &&
+      item.sourcesIdentity !== response.inputs.sources
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Selected-source response identity mismatch",
+      });
+  }
+}
 export const retrievalResponseSchema = z
   .object({
     ...responseBase,
@@ -502,7 +588,8 @@ export const retrievalResponseSchema = z
     selector: evidenceSelectorSchema,
     items: z.array(retrievalItemSchema),
   })
-  .strict();
+  .strict()
+  .superRefine(checkSelectedSourceResponse);
 export const discoveryResponseSchema = z
   .object({
     ...responseBase,
@@ -512,7 +599,8 @@ export const discoveryResponseSchema = z
     nextOffset: nonnegativeInteger.nullable(),
     items: z.array(evidenceDescriptorSchema),
   })
-  .strict();
+  .strict()
+  .superRefine(checkSelectedSourceResponse);
 export type RetrievalResponse = z.infer<typeof retrievalResponseSchema>;
 export type DiscoveryResponse = z.infer<typeof discoveryResponseSchema>;
 export type EvidenceResponse = RetrievalResponse | DiscoveryResponse;
@@ -526,11 +614,18 @@ export function capturedLines(text: string): string[] {
   );
 }
 
+export interface EvidenceInputs {
+  snapshot: Snapshot;
+  bundle?: WorkflowBundle | undefined;
+  sources?: SourceCapture | undefined;
+}
+
 export async function validateRetrievalInputs(
   snapshotValue: unknown,
   bundleValue?: unknown,
   signal?: AbortSignal,
-) {
+  sourcesValue?: unknown,
+): Promise<EvidenceInputs> {
   signal?.throwIfAborted();
   const snapshot = snapshotSchema.parse(snapshotValue);
   const bundle =
@@ -576,7 +671,11 @@ export async function validateRetrievalInputs(
       await new Promise((resolve) => setTimeout(resolve, 0));
     signal?.throwIfAborted();
   }
-  return { snapshot, bundle };
+  const sources =
+    sourcesValue === undefined
+      ? undefined
+      : await validateSourceCapture(sourcesValue, snapshot, signal);
+  return { snapshot, bundle, ...(sources === undefined ? {} : { sources }) };
 }
 
 export const guidedLessonSchema = z
@@ -970,28 +1069,52 @@ export const answerAssessmentsSchema = z
       v.assessments.length,
     "Duplicate assessment",
   );
-export const answerEvidenceManifestSchema = z
+const answerEvidenceArtifactShape = {
+  snapshot: answerText,
+  bundle: answerText.nullable(),
+  snapshotIdentity: contentIdentitySchema,
+  bundleIdentity: contentIdentitySchema.nullable(),
+};
+const checkBundleIdentity = (entry: {
+  bundle: string | null;
+  bundleIdentity: string | null;
+}) => (entry.bundle === null) === (entry.bundleIdentity === null);
+const answerEvidenceArtifactV1Schema = z
+  .object(answerEvidenceArtifactShape)
+  .strict()
+  .refine(checkBundleIdentity, "Bundle identity required");
+const answerEvidenceArtifactV2Schema = z
   .object({
-    schemaVersion: z.literal(1),
-    artifacts: z
-      .array(
-        z
-          .object({
-            snapshot: answerText,
-            bundle: answerText.nullable(),
-            snapshotIdentity: contentIdentitySchema,
-            bundleIdentity: contentIdentitySchema.nullable(),
-          })
-          .strict()
-          .refine(
-            (v) => (v.bundle === null) === (v.bundleIdentity === null),
-            "Bundle identity required",
-          ),
-      )
-      .min(1)
-      .max(4),
+    ...answerEvidenceArtifactShape,
+    sources: answerText.nullable().optional(),
+    sourcesIdentity: contentIdentitySchema.nullable().optional(),
   })
-  .strict();
+  .strict()
+  .refine(checkBundleIdentity, "Bundle identity required")
+  .refine(
+    (entry) => (entry.sources == null) === (entry.sourcesIdentity == null),
+    "Source identity required",
+  );
+export const answerEvidenceManifestSchema = z.discriminatedUnion(
+  "schemaVersion",
+  [
+    z
+      .object({
+        schemaVersion: z.literal(1),
+        artifacts: z.array(answerEvidenceArtifactV1Schema).min(1).max(4),
+      })
+      .strict(),
+    z
+      .object({
+        schemaVersion: z.literal(2),
+        artifacts: z.array(answerEvidenceArtifactV2Schema).min(1).max(4),
+      })
+      .strict(),
+  ],
+);
+export type AnswerEvidenceManifest = z.infer<
+  typeof answerEvidenceManifestSchema
+>;
 const citationFindingSchema = z
   .object({
     source: answerCitationSchema,

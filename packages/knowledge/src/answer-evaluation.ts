@@ -110,6 +110,8 @@ export async function compareAnswers(
   signal?: AbortSignal,
 ): Promise<AnswerComparisonReport> {
   signal?.throwIfAborted();
+  if (evidence.some((input) => input.sources !== undefined))
+    throw new Error("Selected-source answer comparison is not implemented");
   const benchmark = answerBenchmarkSchema.parse(benchmarkValue);
   const { trials } = answerTrialsSchema.parse(trialsValue);
   const { assessments } = answerAssessmentsSchema.parse(assessmentsValue);
