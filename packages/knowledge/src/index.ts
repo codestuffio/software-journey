@@ -4,6 +4,7 @@ import {
   discoveryRequestSchema,
   discoveryResponseSchema,
   type EvidenceDescriptor,
+  type EvidenceInputs,
   type EvidenceResponse,
   type EvidenceSelector,
   type LineRange,
@@ -12,14 +13,11 @@ import {
   type RetrievalResponse,
   retrievalRequestSchema,
   retrievalResponseSchema,
-  type Snapshot,
   type WorkflowBundle,
 } from "@software-journey/contracts";
 
-export interface EvidenceInputs {
-  snapshot: Snapshot;
-  bundle?: WorkflowBundle | undefined;
-}
+export type { EvidenceInputs } from "@software-journey/contracts";
+
 type Evidence = WorkflowBundle["steps"][number]["evidence"];
 interface Entry {
   descriptor: EvidenceDescriptor;
@@ -36,6 +34,8 @@ async function entries(
   inputs: EvidenceInputs,
   signal?: AbortSignal,
 ): Promise<Entry[]> {
+  if (inputs.sources !== undefined)
+    throw new Error("Selected-source retrieval is not implemented");
   const result: Entry[] = [];
   for (const [index, extract] of inputs.snapshot.documentation.entries()) {
     result.push({

@@ -186,3 +186,27 @@ test("compiled comparison CLI assembles inert local artifacts with network and c
     "no Git, model request, or network",
   );
 });
+
+test("version 2 manifests preserve legacy loading and explicitly reject pending sidecar consumption", async () => {
+  const f = await setup();
+  const manifest = { ...f.manifest, schemaVersion: 2 };
+  await writeFile(f.paths.evidence, JSON.stringify(manifest));
+  expect(
+    (await loadAnswerComparisonInputs(f.paths)).evidence[0]?.snapshot
+      .contentIdentity,
+  ).toBe(f.f.input.snapshot.contentIdentity);
+  await writeFile(
+    f.paths.evidence,
+    JSON.stringify({
+      ...manifest,
+      artifacts: manifest.artifacts.map((entry) => ({
+        ...entry,
+        sources: "not-read.json",
+        sourcesIdentity: f.f.input.snapshot.contentIdentity,
+      })),
+    }),
+  );
+  await expect(loadAnswerComparisonInputs(f.paths)).rejects.toThrow(
+    "Selected-source answer comparison is not implemented",
+  );
+});
