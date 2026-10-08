@@ -9,6 +9,7 @@ import {
   validateSnapshotForWrite,
   validateSourceCapture,
 } from "@software-journey/contracts";
+import { writeExclusiveArtifact } from "./artifact-output.js";
 import {
   contentIdentity,
   type GitResult,
@@ -330,6 +331,54 @@ export async function captureSources(
     const validated = await validateSourceCapture(artifact, snapshot, signal);
     check();
     return validated;
+  } catch (error) {
+    check();
+    throw error;
+  }
+}
+
+/** One deadline covers collection, validation, staging and publication. */
+export async function captureSourcesToDirectory(
+  options: CaptureSourcesOptions & { outputDirectory: string },
+): Promise<string> {
+  const started = Date.now();
+  const deadline = AbortSignal.timeout(sourceCaptureLimits.deadlineMs);
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, deadline])
+    : deadline;
+  const check = () => {
+    if (
+      signal.aborted ||
+      Date.now() - started >= sourceCaptureLimits.deadlineMs
+    ) {
+      const timedOut =
+        deadline.aborted ||
+        Date.now() - started >= sourceCaptureLimits.deadlineMs;
+      throw new RepositoryAnalysisError(
+        timedOut
+          ? "Source capture exceeded its deadline."
+          : "Source capture was canceled.",
+        timedOut ? "timeout" : "canceled",
+      );
+    }
+  };
+  try {
+    check();
+    const capture = await captureSources({ ...options, signal });
+    const text = `${JSON.stringify(capture)}\n`;
+    if (Buffer.byteLength(text) > sourceCaptureLimits.maximumArtifactBytes)
+      throw new RepositoryAnalysisError(
+        "Source artifact byte limit exceeded.",
+        "artifact-byte-limit",
+      );
+    check();
+    return await writeExclusiveArtifact(
+      options.outputDirectory,
+      "source-capture.json",
+      text,
+      signal,
+      check,
+    );
   } catch (error) {
     check();
     throw error;

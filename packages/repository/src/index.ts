@@ -35,6 +35,7 @@ export { RepositoryAnalysisError } from "./git.js";
 export {
   type CaptureSourcesOptions,
   captureSources,
+  captureSourcesToDirectory,
 } from "./source-capture.js";
 
 import { openSpecEvaluationCatalog } from "./evaluation-catalog.js";

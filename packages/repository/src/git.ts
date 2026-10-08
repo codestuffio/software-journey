@@ -107,6 +107,7 @@ export async function runGit(
     throw new RepositoryAnalysisError("Analysis was canceled.", "canceled");
   }
   return new Promise((resolveResult, reject) => {
+    const isolatedGroup = process.platform !== "win32";
     const child = spawn(
       "git",
       [
@@ -132,6 +133,7 @@ export async function runGit(
           GIT_NO_REPLACE_OBJECTS: "1",
           GIT_LITERAL_PATHSPECS: "1",
         },
+        detached: isolatedGroup,
         stdio: ["ignore", "pipe", "pipe"],
       },
     );
@@ -139,17 +141,37 @@ export async function runGit(
     let received = 0;
     let stderr = "";
     let exceededLimit = false;
+    let timedOut = false;
+    const kill = (signal: NodeJS.Signals) => {
+      if (isolatedGroup && child.pid) {
+        try {
+          process.kill(-child.pid, signal);
+        } catch {
+          child.kill(signal);
+        }
+      } else child.kill(signal);
+    };
+    let forcedKill: ReturnType<typeof setTimeout> | undefined;
+    const terminate = () => {
+      kill("SIGTERM");
+      forcedKill ??= setTimeout(() => {
+        kill("SIGKILL");
+        child.stdout.destroy();
+        child.stderr.destroy();
+      }, 250);
+    };
     const timeout = setTimeout(() => {
-      child.kill("SIGTERM");
+      timedOut = true;
+      terminate();
     }, gitTimeoutMs);
-    const onAbort = () => child.kill("SIGTERM");
+    const onAbort = terminate;
     signal?.addEventListener("abort", onAbort, { once: true });
 
     child.stdout.on("data", (chunk: Buffer) => {
       received += chunk.length;
       if (maximumBytes !== undefined && received > maximumBytes) {
         exceededLimit = true;
-        child.kill("SIGTERM");
+        terminate();
         return;
       }
       chunks.push(chunk);
@@ -160,11 +182,17 @@ export async function runGit(
     });
     child.on("error", (error) => {
       clearTimeout(timeout);
+      // A descendant can outlive the direct child after closing its inherited pipes.
+      if (forcedKill) kill("SIGKILL");
+      clearTimeout(forcedKill);
       signal?.removeEventListener("abort", onAbort);
       reject(new RepositoryAnalysisError(error.message, "git-unavailable"));
     });
     child.on("close", (code, childSignal) => {
       clearTimeout(timeout);
+      // A descendant can outlive the direct child after closing its inherited pipes.
+      if (forcedKill) kill("SIGKILL");
+      clearTimeout(forcedKill);
       signal?.removeEventListener("abort", onAbort);
       if (signal?.aborted) {
         reject(
@@ -180,7 +208,7 @@ export async function runGit(
         });
         return;
       }
-      if (childSignal === "SIGTERM") {
+      if (timedOut || childSignal === "SIGTERM") {
         reject(
           new RepositoryAnalysisError(
             "Analysis exceeded its 60-second timeout.",
