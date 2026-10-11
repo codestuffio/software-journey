@@ -6,9 +6,7 @@ import {
   evidenceDescriptorSchema,
   retrievalItemSchema,
   retrievalResponseSchema,
-  type SourceCapture,
   sourceCaptureContentIdentity,
-  sourceCaptureLimits,
   sourceTextDigest,
   validateRetrievalInputs,
 } from "../packages/contracts/src/index.ts";
@@ -25,51 +23,8 @@ import {
   pathRequest,
   required,
 } from "./fixtures/retrieval.ts";
+import { sourcesFixture } from "./fixtures/source-capture.ts";
 
-async function sourcesFixture(): Promise<SourceCapture> {
-  const { snapshot } = evidenceFixture();
-  const selection = { path: "src/example.ts", lines: { start: 1, end: 1 } };
-  const sources: SourceCapture = {
-    schemaVersion: 1,
-    contentIdentity: identity,
-    snapshot: {
-      contentIdentity: snapshot.contentIdentity,
-      repository: snapshot.repository,
-    },
-    limits: { ...sourceCaptureLimits },
-    selections: [selection],
-    entries: [
-      {
-        selection,
-        status: "available",
-        blobId: "d".repeat(40),
-        fileLineCount: 2,
-        actualRange: selection.lines,
-        text: "hello\n",
-        contentDigest: await sourceTextDigest("hello\n"),
-        missingRanges: [],
-        reasons: [],
-      },
-    ],
-    blobs: [{ objectId: "d".repeat(40), bytesRead: 6 }],
-    coverage: {
-      requestedSelections: 1,
-      capturedSelections: 1,
-      partialSelections: 0,
-      unavailableSelections: 0,
-      bytesRead: 6,
-      bytesReturned: 6,
-    },
-    run: {
-      collectorVersion: "0.0.0",
-      startedAt: "2026-10-06T00:00:00Z",
-      completedAt: "2026-10-06T00:00:01Z",
-      durationMs: 1000,
-    },
-  };
-  sources.contentIdentity = await sourceCaptureContentIdentity(sources);
-  return sources;
-}
 const legacyManifest = {
   schemaVersion: 1,
   artifacts: [
@@ -169,14 +124,34 @@ test("optional sidecars reject forged digests and mismatched bindings", async ()
     ).rejects.toThrow();
   }
 });
-test("contract-ready sidecars cannot be silently ignored by unfinished consumers", async () => {
+test("sidecars are discovered and retrieved with their artifact identity", async () => {
   const input = { ...evidenceFixture(), sources: await sourcesFixture() };
-  await expect(retrieveEvidence(input, pathRequest())).rejects.toThrow(
-    "Selected-source retrieval is not implemented",
-  );
-  await expect(discoverEvidence(input, {})).rejects.toThrow(
-    "Selected-source retrieval is not implemented",
-  );
+  const discovery = await discoverEvidence(input);
+  expect(discovery.inputs.sources).toBe(input.sources.contentIdentity);
+  expect(
+    discovery.items.find((item) => item.origin === "selected-source"),
+  ).toMatchObject({
+    status: "available",
+    sourcesIdentity: input.sources.contentIdentity,
+    selector: {
+      type: "source",
+      path: "src/example.ts",
+      lines: { start: 1, end: 1 },
+    },
+  });
+  const retrieval = await retrieveEvidence(input, {
+    schemaVersion: 1,
+    selector: required(
+      discovery.items.find((item) => item.origin === "selected-source"),
+    ).selector,
+  });
+  expect(retrieval.items).toHaveLength(1);
+  expect(retrieval.items[0]).toMatchObject({
+    origin: "selected-source",
+    type: "source",
+    text: "hello\n",
+    sourcesIdentity: input.sources.contentIdentity,
+  });
 });
 test("responses accept selected-source provenance and reject missing or mismatched identities", async () => {
   const input = evidenceFixture();
