@@ -27,11 +27,11 @@ Usage:
 
   software-journey compare-answers --benchmark <file> --trials <file> --assessments <file> --evidence <manifest-file> --output <new-directory>
 
-  software-journey context --snapshot <file> [--bundle <file>] [--max-bytes <n>] [--offset <n>]
-  software-journey retrieve --snapshot <file> [--bundle <file>] --request <file>
+  software-journey context --snapshot <file> [--bundle <file>] [--sources <file>] [--max-bytes <n>] [--offset <n>]
+  software-journey retrieve --snapshot <file> [--bundle <file>] [--sources <file>] --request <file>
 
-Capture-sources reads exact committed paths/ranges from a matching snapshot's checkout. Inputs must be regular files: request 16 KiB, snapshot 32 MiB. Captures are local source-capture.json sidecars (2 MiB maximum), published exclusively outside Git checkouts; the entire command has a 30-second deadline. Unavailable selections remain explicit. Collection never executes or uploads source, and does not approve hosted use. Sidecar retrieval integration is pending.
-Context and retrieve read local artifacts only, with no checkout, Git, or network access. They return JSON on stdout, including unavailable evidence. Response budgets are 4096-262144 UTF-8 bytes (default 32768); artifact limits are 32 MiB and requests 16 KiB.
+Capture-sources reads exact committed paths/ranges from a matching snapshot's checkout. Inputs must be regular files: request 16 KiB, snapshot 32 MiB. Captures are local source-capture.json sidecars (2 MiB maximum), published exclusively outside Git checkouts; the entire command has a 30-second deadline. Unavailable selections remain explicit. Collection never executes or uploads source, and does not approve hosted use.
+Context and retrieve read local artifacts only, with no checkout, Git, or network access. Optional --sources selects a matching source-capture.json sidecar (2 MiB maximum). They return JSON on stdout, including unavailable evidence. Response budgets are 4096-262144 UTF-8 bytes (default 32768); snapshot/bundle limits are 32 MiB and requests 16 KiB. Both commands have a 10-second deadline.
 Analyze reads committed HEAD only. It never runs repository code, includes working-tree changes, or sends source content over a network.
 Trace reads only the reviewed workflow catalog's committed paths. Output must be outside the selected checkout. Local artifacts record exclusions, limits, and incomplete history.`);
 }

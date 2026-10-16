@@ -8,6 +8,7 @@ import {
   retrievalResponseSchema,
 } from "../packages/contracts/src/index.ts";
 import { evidenceFixture, pathRequest } from "./fixtures/retrieval.ts";
+import { sourcesFixture } from "./fixtures/source-capture.ts";
 
 const cli = resolve("apps/cli/dist/index.js");
 const directories: string[] = [];
@@ -172,6 +173,55 @@ test("compiled CLI cancellation publishes no successful response", async () => {
   expect(code).not.toBe(0);
   expect(output).toBe("");
   expect(errors).toContain("canceled");
+});
+
+test("compiled evidence commands reject invalid sidecars before emitting evidence", async () => {
+  const f = await setup();
+  const sources = join(f.dir, "sources.json");
+  const valid = await sourcesFixture();
+  for (const command of ["context", "retrieve"]) {
+    const args = [
+      command,
+      "--snapshot",
+      f.snapshot,
+      "--bundle",
+      f.bundle,
+      "--sources",
+      sources,
+      ...(command === "retrieve" ? ["--request", f.request] : []),
+    ];
+    await writeFile(sources, JSON.stringify(valid));
+    const success = f.run(args);
+    expect(success.status, success.stderr).toBe(0);
+    for (const extra of [["--sources"], ["--sources", sources]]) {
+      const result = f.run([...args, ...extra]);
+      expect(result.status).not.toBe(0);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("Invalid, duplicate, or missing");
+    }
+    for (const text of [
+      "{broken",
+      " ".repeat(2 * 1024 * 1024 + 1),
+      JSON.stringify({
+        ...valid,
+        snapshot: {
+          ...valid.snapshot,
+          contentIdentity: `sha256:${"f".repeat(64)}`,
+        },
+      }),
+      JSON.stringify({ ...valid, contentIdentity: `sha256:${"f".repeat(64)}` }),
+    ]) {
+      await writeFile(sources, text);
+      const result = f.run(args);
+      expect(result.status).not.toBe(0);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("Evidence operation failed");
+    }
+    await rm(sources);
+    const missing = f.run(args);
+    expect(missing.status).not.toBe(0);
+    expect(missing.stdout).toBe("");
+  }
 });
 
 test("explain CLI previews offline and rejects stale approval before network access", async () => {

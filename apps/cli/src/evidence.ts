@@ -25,8 +25,8 @@ export async function runEvidenceCommand(args: string[]): Promise<void> {
     const discover = args[0] === "context";
     const allowed = new Set(
       discover
-        ? ["--snapshot", "--bundle", "--max-bytes", "--offset"]
-        : ["--snapshot", "--bundle", "--request"],
+        ? ["--snapshot", "--bundle", "--sources", "--max-bytes", "--offset"]
+        : ["--snapshot", "--bundle", "--sources", "--request"],
     );
     const flags = new Map<string, string>();
     for (let index = 1; index < args.length; index += 2) {
@@ -72,6 +72,7 @@ export async function runEvidenceCommand(args: string[]): Promise<void> {
       snapshotPath,
       flags.get("--bundle"),
       signal,
+      flags.get("--sources"),
     );
     const response = discover
       ? await discoverEvidence(inputs, request, signal)

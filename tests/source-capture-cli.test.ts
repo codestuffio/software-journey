@@ -13,6 +13,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import {
+  discoveryResponseSchema,
+  retrievalResponseSchema,
   sourceCaptureLimits,
   validateSourceCapture,
 } from "../packages/contracts/src/index.ts";
@@ -141,6 +143,71 @@ test("compiled capture-sources publishes committed ranges locally and preserves 
   expect(await readFile(join(f.output, "source-capture.json"), "utf8")).toBe(
     bytes,
   );
+
+  // Consumption must still work after collection loses its original checkout.
+  await rm(f.repository, { recursive: true });
+  await writeFile(
+    f.guard,
+    `${await readFile(f.guard, "utf8")}\nimport child from 'node:child_process';for(const name of ['spawn','spawnSync','exec','execSync','execFile','execFileSync','fork']) child[name]=deny;syncBuiltinESMExports();`,
+  );
+  const sources = join(f.output, "source-capture.json");
+  const discovery = f.run([
+    "context",
+    "--snapshot",
+    f.snapshot,
+    "--sources",
+    sources,
+    "--max-bytes",
+    "4096",
+  ]);
+  expect(discovery.status, discovery.stderr).toBe(0);
+  const manifest = discoveryResponseSchema.parse(JSON.parse(discovery.stdout));
+  const descriptor = manifest.items.find(
+    (item) => item.origin === "selected-source",
+  );
+  expect(descriptor).toMatchObject({ status: "available" });
+  expect(Buffer.byteLength(discovery.stdout)).toBe(
+    manifest.budget.returnedBytes,
+  );
+  expect(manifest.budget.returnedBytes).toBeLessThanOrEqual(4096);
+  for (const selector of [
+    descriptor?.selector,
+    { type: "path", path: "source.sh", lines: { start: 2, end: 3 } },
+  ]) {
+    await writeFile(
+      f.request,
+      JSON.stringify({ schemaVersion: 1, maxBytes: 4096, selector }),
+    );
+    const result = f.run([
+      "retrieve",
+      "--snapshot",
+      f.snapshot,
+      "--sources",
+      sources,
+      "--request",
+      f.request,
+    ]);
+    expect(result.status, result.stderr).toBe(0);
+    const response = retrievalResponseSchema.parse(JSON.parse(result.stdout));
+    expect(response.items[0]).toMatchObject({
+      origin: "selected-source",
+      status: "available",
+      text: "touch SHOULD_NOT_EXIST\r\nlast",
+      sourcesIdentity: capture.contentIdentity,
+      source: {
+        repositoryId: f.snapshotValue.repository.id,
+        commitSha: f.snapshotValue.repository.headCommit,
+        path: "source.sh",
+        lines: { start: 2, end: 3 },
+      },
+    });
+    expect(Buffer.byteLength(result.stdout)).toBe(
+      response.budget.returnedBytes,
+    );
+    expect(response.budget.returnedBytes).toBeLessThanOrEqual(4096);
+  }
+  await expect(access(join(f.root, "SHOULD_NOT_EXIST"))).rejects.toThrow();
+  expect(await readFile(sources, "utf8")).toBe(bytes);
 });
 
 test("compiled capture-sources publishes truthful unavailable selections", async () => {
