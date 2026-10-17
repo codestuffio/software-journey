@@ -286,7 +286,7 @@ test.each([
     ).toBe(false);
   },
 );
-test("comparison rejects sidecars even on revisions no case or trial cites", async () => {
+test("comparison records validated sidecar provenance even on uncited revisions", async () => {
   const f = await answerFixture();
   const other = evidenceFixture();
   other.snapshot.repository.headCommit = "e".repeat(40);
@@ -306,14 +306,13 @@ test("comparison rejects sidecars even on revisions no case or trial cites", asy
     repositoryId: other.snapshot.repository.id,
     commitSha: other.snapshot.repository.headCommit,
   });
-  await expect(
-    compareAnswers(
-      f.benchmark,
-      { schemaVersion: 1, trials: [] },
-      { schemaVersion: 1, assessments: [] },
-      [f.input, validated],
-    ),
-  ).rejects.toThrow("Selected-source answer comparison is not implemented");
+  const report = await compareAnswers(
+    f.benchmark,
+    { schemaVersion: 1, trials: [] },
+    { schemaVersion: 1, assessments: [] },
+    [f.input, validated],
+  );
+  expect(report.evidence[1]?.sourcesIdentity).toBe(sources.contentIdentity);
 });
 test("selected-source origins cannot masquerade as history or workflow steps", () => {
   const input = evidenceFixture();

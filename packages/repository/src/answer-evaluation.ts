@@ -7,6 +7,7 @@ import {
   answerEvidenceManifestSchema,
   answerTrialsSchema,
   retrievalLimits,
+  sourceCaptureLimits,
   validateRetrievalInputs,
 } from "@software-journey/contracts";
 import { writeExclusiveArtifact } from "./artifact-output.js";
@@ -31,18 +32,16 @@ export async function loadAnswerComparisonInputs(
   const manifest = answerEvidenceManifestSchema.parse(
     await read(paths.evidence),
   );
-  if (
-    manifest.schemaVersion === 2 &&
-    manifest.artifacts.some((entry) => entry.sources != null)
-  )
-    throw new Error("Selected-source answer comparison is not implemented");
   const base = dirname(resolve(paths.evidence));
   let remaining: number = answerEvaluationLimits.evidenceBytes;
   const evidence = [];
-  const readArtifact = (path: string) =>
+  const readArtifact = (
+    path: string,
+    maximumBytes: number = retrievalLimits.artifactBytes,
+  ) =>
     readBoundedJson(
       resolve(base, path),
-      Math.min(retrievalLimits.artifactBytes, remaining),
+      Math.min(maximumBytes, remaining),
       signal,
       (bytes) => {
         remaining -= bytes;
@@ -53,10 +52,24 @@ export async function loadAnswerComparisonInputs(
     const snapshot = await readArtifact(entry.snapshot);
     const bundle =
       entry.bundle === null ? undefined : await readArtifact(entry.bundle);
-    const validated = await validateRetrievalInputs(snapshot, bundle, signal);
+    const sources =
+      "sources" in entry && entry.sources != null
+        ? await readArtifact(
+            entry.sources,
+            sourceCaptureLimits.maximumArtifactBytes,
+          )
+        : undefined;
+    const validated = await validateRetrievalInputs(
+      snapshot,
+      bundle,
+      signal,
+      sources,
+    );
     if (
       validated.snapshot.contentIdentity !== entry.snapshotIdentity ||
-      (validated.bundle?.contentIdentity ?? null) !== entry.bundleIdentity
+      (validated.bundle?.contentIdentity ?? null) !== entry.bundleIdentity ||
+      (validated.sources?.contentIdentity ?? null) !==
+        ("sourcesIdentity" in entry ? (entry.sourcesIdentity ?? null) : null)
     )
       throw new Error("Manifest artifact identity mismatch");
     evidence.push(validated);

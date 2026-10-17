@@ -110,8 +110,6 @@ export async function compareAnswers(
   signal?: AbortSignal,
 ): Promise<AnswerComparisonReport> {
   signal?.throwIfAborted();
-  if (evidence.some((input) => input.sources !== undefined))
-    throw new Error("Selected-source answer comparison is not implemented");
   const benchmark = answerBenchmarkSchema.parse(benchmarkValue);
   const { trials } = answerTrialsSchema.parse(trialsValue);
   const { assessments } = answerAssessmentsSchema.parse(assessmentsValue);
@@ -254,6 +252,7 @@ export async function compareAnswers(
       revision: e.snapshot.repository.headCommit,
       snapshotIdentity: e.snapshot.contentIdentity,
       bundleIdentity: e.bundle?.contentIdentity ?? null,
+      ...(e.sources ? { sourcesIdentity: e.sources.contentIdentity } : {}),
     })),
     cases,
     trials: reviewed,
