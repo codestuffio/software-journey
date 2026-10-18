@@ -283,3 +283,67 @@ test("source sidecar digest, snapshot binding, absence, cancellation and combine
     (await readdir(f.dir)).filter((p) => p.includes(".tmp-") || p === "result"),
   ).toEqual([]);
 });
+
+test.each([false, true])(
+  "trial preparation preserves legacy manifests and binds optional historical sources (sidecar: %s)",
+  async (selectedSource) => {
+    const f = await setup(selectedSource);
+    const helper = resolve("tests/acceptance/prepare-answer-trials.mjs");
+    const output = join(f.dir, "prepared");
+    const args = [
+      helper,
+      "--snapshot",
+      join(f.dir, "snapshot.json"),
+      "--bundle",
+      join(f.dir, "bundle.json"),
+      "--before",
+      join(f.dir, "snapshot.json"),
+      "--after",
+      join(f.dir, "snapshot.json"),
+      "--output",
+      output,
+      ...(selectedSource
+        ? [
+            "--before-sources",
+            join(f.dir, "sources.json"),
+            "--after-sources",
+            join(f.dir, "sources.json"),
+          ]
+        : []),
+    ];
+    const run = (invocation: string[]) =>
+      execFileSync(process.execPath, invocation, {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    run(args);
+    const manifest = JSON.parse(
+      await readFile(join(output, "evidence.json"), "utf8"),
+    );
+    expect(manifest.schemaVersion).toBe(selectedSource ? 2 : 1);
+    expect(manifest.artifacts).toHaveLength(3);
+    expect(manifest.artifacts[0]).not.toHaveProperty("sources");
+    for (const entry of manifest.artifacts.slice(1)) {
+      if (selectedSource) {
+        expect(entry.sources).toBe(join(f.dir, "sources.json"));
+        expect(entry.sourcesIdentity).toBe(f.f.input.sources?.contentIdentity);
+      } else expect(entry).not.toHaveProperty("sourcesIdentity");
+    }
+    expect(
+      JSON.parse(await readFile(join(output, "trials.json"), "utf8")),
+    ).toEqual({ schemaVersion: 1, trials: [] });
+    expect(
+      JSON.parse(await readFile(join(output, "assessments.json"), "utf8")),
+    ).toEqual({ schemaVersion: 1, assessments: [] });
+    if (selectedSource) {
+      const source = required(f.f.input.sources);
+      source.snapshotIdentity = `sha256:${"0".repeat(64)}`;
+      await writeFile(join(f.dir, "sources.json"), JSON.stringify(source));
+      const invalid = join(f.dir, "invalid");
+      expect(() =>
+        run(args.map((value) => (value === output ? invalid : value))),
+      ).toThrow();
+      expect(await readdir(f.dir)).not.toContain("invalid");
+    }
+  },
+);
