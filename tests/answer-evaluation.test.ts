@@ -3,6 +3,8 @@ import { expect, test } from "vitest";
 import {
   answerBenchmarkSchema,
   answerTrialsSchema,
+  type EvidenceInputs,
+  sourceCaptureContentIdentity,
 } from "../packages/contracts/src/index.ts";
 import {
   answerContentDigest,
@@ -14,7 +16,7 @@ import { required } from "./fixtures/retrieval.ts";
 
 const compare = async (
   f: Awaited<ReturnType<typeof answerFixture>>,
-  evidence = [f.input],
+  evidence: EvidenceInputs[] = [f.input],
 ) => compareAnswers(f.benchmark, f.trials, f.assessments, evidence);
 test("canonical digest uses SHA-256, ignores object order, and binds answer content", async () => {
   expect(await answerContentDigest({ b: 2, a: 1 })).toBe(
@@ -236,3 +238,95 @@ test("bounded contracts reject oversized case/trial collections and empty assess
   required(f.assessments.assessments[0]).correctness.reason = "  \n ";
   await expect(compare(f)).rejects.toThrow("must not be blank");
 });
+
+test("selected source citations resolve with source identity provenance and retain legacy output", async () => {
+  const f = await answerFixture("real", true);
+  const absent = await compare(f, [{ ...f.input, sources: undefined }]);
+  expect(absent.cases[0]?.available).toBe(false);
+  expect(absent.evidence[0]).not.toHaveProperty("sourcesIdentity");
+  const report = await compare(f);
+  expect(report.cases[0]?.available).toBe(true);
+  expect(report.evidence[0]).toMatchObject({
+    sourcesIdentity: f.input.sources?.contentIdentity,
+  });
+  expect(report.counts.eligiblePairs).toBe(1);
+  expect(report.pairs[0]?.metrics.tokens).toMatchObject({
+    difference: null,
+    reason: "unknown-measurement",
+  });
+  expect(report.pairs[0]?.metrics.costUsd.difference).toBeNull();
+});
+
+test("complete before and after captures resolve history while missing or truncated ranges stay unavailable", async () => {
+  const f = await answerFixture("real", true);
+  const before = structuredClone(f.input);
+  before.snapshot.repository.headCommit = "d".repeat(40);
+  before.snapshot.documentation = [];
+  const sources = required(before.sources);
+  sources.snapshot.repository.headCommit =
+    before.snapshot.repository.headCommit;
+  sources.contentIdentity = await sourceCaptureContentIdentity(sources);
+  const citation = {
+    ...structuredClone(required(f.benchmark.cases[0]?.expectedCitations[0])),
+    commitSha: before.snapshot.repository.headCommit,
+  };
+  const c = required(f.benchmark.cases[0]);
+  c.kind = "history";
+  c.expectedCitations.unshift(citation);
+  f.benchmark.revisions.unshift(citation.commitSha);
+  f.benchmark.revisionIdentities.unshift({
+    repositoryId: citation.repositoryId,
+    commitSha: citation.commitSha,
+  });
+  const digest = await answerContentDigest(f.benchmark);
+  for (const t of f.trials.trials) {
+    t.benchmarkDigest = digest;
+    t.revisions = f.benchmark.revisions;
+  }
+  for (const a of f.assessments.assessments) a.benchmarkDigest = digest;
+  const evidence = [{ snapshot: before.snapshot, sources }, f.input];
+  expect((await compare(f, evidence)).cases[0]?.available).toBe(true);
+  expect((await compare(f)).cases[0]?.available).toBe(false);
+  citation.lines.end = 2;
+  const changedDigest = await answerContentDigest(f.benchmark);
+  for (const t of f.trials.trials) t.benchmarkDigest = changedDigest;
+  for (const a of f.assessments.assessments) a.benchmarkDigest = changedDigest;
+  expect((await compare(f, evidence)).cases[0]?.findings[0]).toMatchObject({
+    available: false,
+  });
+});
+
+test.each([
+  "unreviewed",
+  "synthetic",
+  "failed-quality",
+  "mismatched",
+  "unmatched",
+] as const)(
+  "newly captured evidence cannot bypass %s trial gates",
+  async (gate) => {
+    const f = await answerFixture("real", true);
+    const retrieval = required(f.trials.trials[1]);
+    if (gate === "unreviewed") f.assessments.assessments = [];
+    if (gate === "synthetic") retrieval.provenance = "synthetic";
+    if (gate === "failed-quality")
+      required(f.assessments.assessments[1]).correctness.outcome = "fail";
+    if (gate === "mismatched")
+      retrieval.participant.configuration = "other participant";
+    if (gate === "unmatched") {
+      f.trials.trials.pop();
+      f.assessments.assessments.pop();
+    }
+    const report = await compare(f);
+    expect(report.cases[0]?.available).toBe(true);
+    expect(report.counts.eligiblePairs).toBe(0);
+    expect(report.pairs.every((p) => !p.eligible)).toBe(true);
+    expect(
+      report.pairs.every(
+        (p) =>
+          p.metrics.tokens.difference === null &&
+          p.metrics.costUsd.difference === null,
+      ),
+    ).toBe(true);
+  },
+);

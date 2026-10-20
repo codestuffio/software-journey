@@ -1,8 +1,11 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { answerContentDigest } from "../../packages/knowledge/dist/index.js";
-import { openSpecAnswerBenchmark } from "../../packages/repository/dist/index.js";
+import {
+  loadEvidenceArtifacts,
+  openSpecAnswerBenchmark,
+} from "../../packages/repository/dist/index.js";
 
 const { values } = parseArgs({
   options: {
@@ -10,6 +13,8 @@ const { values } = parseArgs({
     bundle: { type: "string" },
     before: { type: "string" },
     after: { type: "string" },
+    "before-sources": { type: "string" },
+    "after-sources": { type: "string" },
     output: { type: "string" },
   },
   strict: true,
@@ -23,18 +28,29 @@ if (
 )
   throw new Error("Requires --snapshot --bundle --before --after --output");
 const artifacts = [];
-for (const [snapshot, bundle] of [
-  [values.snapshot, values.bundle],
-  [values.before, null],
-  [values.after, null],
+for (const [snapshot, bundle, sources] of [
+  [values.snapshot, values.bundle, undefined],
+  [values.before, undefined, values["before-sources"]],
+  [values.after, undefined, values["after-sources"]],
 ]) {
-  const s = JSON.parse(await readFile(snapshot, "utf8"));
-  const b = bundle ? JSON.parse(await readFile(bundle, "utf8")) : null;
+  const input = await loadEvidenceArtifacts(
+    snapshot,
+    bundle,
+    undefined,
+    sources,
+  );
+  const { snapshot: s, bundle: b } = input;
   artifacts.push({
     snapshot: resolve(snapshot),
     bundle: bundle ? resolve(bundle) : null,
     snapshotIdentity: s.contentIdentity,
     bundleIdentity: b?.contentIdentity ?? null,
+    ...(sources
+      ? {
+          sources: resolve(sources),
+          sourcesIdentity: input.sources.contentIdentity,
+        }
+      : {}),
   });
 }
 await mkdir(values.output); // Deliberately refuses to overwrite an existing directory.
@@ -42,7 +58,10 @@ for (const [name, value] of Object.entries({
   benchmark: openSpecAnswerBenchmark,
   trials: { schemaVersion: 1, trials: [] },
   assessments: { schemaVersion: 1, assessments: [] },
-  evidence: { schemaVersion: 1, artifacts },
+  evidence: {
+    schemaVersion: values["before-sources"] || values["after-sources"] ? 2 : 1,
+    artifacts,
+  },
 }))
   await writeFile(
     resolve(values.output, `${name}.json`),

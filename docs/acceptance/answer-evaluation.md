@@ -12,4 +12,14 @@ Historical source inspection used committed Git text only. The candidate change 
 
 Ignored trial preparation now contains benchmark/evidence inputs, empty trial/review lists, an editable synthetic trial template, local authored reference-answer drafts, and manually inspected historical reference extracts. Drafts await human review. The supported report never treats those manual extracts as validated retrieval artifacts.
 
-Real human or model trials, semantic-quality outcomes, provider availability, account costs, and context savings remain unmeasured. No live model request or source upload occurred. Follow [the local trial procedure](../answer-evaluation.md) for the separate participant and review work. A separate collection capability is needed to make the historical comparison available.
+Real human or model trials, semantic-quality outcomes, provider availability, account costs, and context savings remain unmeasured. No live model request or source upload occurred. Follow [the local trial procedure](../answer-evaluation.md) for the separate participant and review work. The source-sidecar acceptance below now covers historical citation availability.
+
+## Selected-source acceptance — 2026-10-18
+
+The compiled CLI at parent revision `d369edc961d023f44df851506e3c467928562483` captured the three exact historical ranges listed in [the trial instructions](../answer-evaluation.md): before parser lines 26–51 at `62106f40e3b7b7364529a2f928717e23e37282eb`, after parser lines 55–80 and regression-test lines 359–382 at `11a9691524bad84a575854bf6dc5124f630479ba`. Existing matching snapshots and the current pinned workflow bundle were reused unchanged.
+
+Temporary detached OpenSpec worktrees were created with no working files, hooks disabled, and filesystem monitoring disabled. Only committed objects were collected; imported code and tests were never executed. Both temporary worktrees were removed before reporting. Captures, requests, manifests, snapshots, and reports remain local outside Git checkouts; no upstream text is committed here.
+
+With process and network APIs blocked, the compiled `compare-answers` command loaded a version 2 manifest across all three revisions and reported **5/5 cases available**, including all three historical ranges. The version 1 control without sidecars reported **4/5 available** with the historical case unavailable. Both reports contained zero trials and assessments. This verifies artifact-only citation mechanics, not human judgment, repository lineage, real answer quality, or savings.
+
+The trial preparation helper now accepts optional `--before-sources` and `--after-sources`, validates supplied sidecars before creating output, and records their identities in version 2 manifests. Calls without those flags retain version 1. Automated checks cover both paths and rejection of mismatched source bindings; the pinned run supplies the complete multi-revision compiled CLI acceptance. Human reference review, real trials, and measured token/cost outcomes remain separate work.

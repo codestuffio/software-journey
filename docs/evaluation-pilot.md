@@ -17,7 +17,7 @@ The first pilot has four usable questions at OpenSpec revision `bae58cf614799864
 
 The exact questions, criteria, and revision/path/line citations are in `openSpecAnswerBenchmark`. The [reference preparation instructions](answer-evaluation.md#prepare-the-reference-set) explain how to create local input files. Existing local drafts await human review; they are not participant answers or completed human assessments.
 
-Keep the fifth, historical question marked unavailable. Its required parser and regression-test code is not captured at the older revisions. Commit metadata cannot replace that evidence. A separate collection change is needed before this question can support a quality comparison.
+The fifth, historical question requires matching before/after source sidecars. Follow [historical collection and trial preparation](answer-evaluation.md) to capture its parser and regression-test ranges. Without those sidecars, keep it unavailable. Judging answers against those citations still requires separate human reference and answer review; commit metadata cannot replace source evidence.
 
 Freeze the reviewed rubric before collecting answers. If it changes, increment its version and regenerate its digest. Old trial and assessment bindings will no longer match.
 

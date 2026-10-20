@@ -13,6 +13,7 @@ import {
   type RetrievalResponse,
   retrievalRequestSchema,
   retrievalResponseSchema,
+  type SourceCaptureEntry,
   type WorkflowBundle,
 } from "@software-journey/contracts";
 
@@ -22,6 +23,7 @@ type Evidence = WorkflowBundle["steps"][number]["evidence"];
 interface Entry {
   descriptor: EvidenceDescriptor;
   evidence: Evidence;
+  capture?: SourceCaptureEntry;
 }
 const encoder = new TextEncoder();
 const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -34,8 +36,6 @@ async function entries(
   inputs: EvidenceInputs,
   signal?: AbortSignal,
 ): Promise<Entry[]> {
-  if (inputs.sources !== undefined)
-    throw new Error("Selected-source retrieval is not implemented");
   const result: Entry[] = [];
   for (const [index, extract] of inputs.snapshot.documentation.entries()) {
     result.push({
@@ -79,6 +79,37 @@ async function entries(
       evidence,
     });
   }
+  for (const [index, capture] of (inputs.sources?.entries ?? []).entries()) {
+    const source = {
+      repositoryId: inputs.snapshot.repository.id,
+      commitSha: inputs.snapshot.repository.headCommit,
+      path: capture.selection.path,
+      lines: capture.actualRange,
+    };
+    result.push({
+      descriptor: {
+        id: `selected-source:${inputs.sources?.contentIdentity}:${index}`,
+        origin: "selected-source",
+        sourcesIdentity: inputs.sources?.contentIdentity,
+        status: capture.status,
+        reasons: capture.reasons,
+        selector: { type: "source", ...source, lines: capture.selection.lines },
+        source: capture.actualRange === null ? null : source,
+        commitSha: null,
+        label: null,
+      },
+      evidence:
+        capture.text === null || capture.contentDigest === null
+          ? { type: "unavailable", reason: capture.reasons.join(",") }
+          : {
+              type: "source",
+              source,
+              text: capture.text,
+              contentId: capture.contentDigest,
+            },
+      capture,
+    });
+  }
   result.sort((a, b) => compare(a.descriptor.id, b.descriptor.id));
   await checkpoint(signal);
   return result;
@@ -101,6 +132,7 @@ function base(inputs: EvidenceInputs, maxBytes: number, omissions: Omission[]) {
     inputs: {
       snapshot: inputs.snapshot.contentIdentity,
       bundle: inputs.bundle?.contentIdentity ?? null,
+      ...(inputs.sources ? { sources: inputs.sources.contentIdentity } : {}),
     },
     status: "available" as const,
     reasons: [] as string[],
@@ -108,6 +140,7 @@ function base(inputs: EvidenceInputs, maxBytes: number, omissions: Omission[]) {
       ...inputs.snapshot.coverage,
       omissions: [] as Omission[],
       workflowSteps: inputs.bundle?.steps.length ?? 0,
+      ...(inputs.sources ? { selectedSources: inputs.sources.coverage } : {}),
       totalOmissions: allOmissions(inputs).length,
       relevantOmissions: omissions.length,
       omittedDetails: omissions.length,
@@ -249,11 +282,64 @@ function collectionTruncated(inputs: EvidenceInputs, path: string) {
       ["per-file-byte-limit", "total-byte-limit"].includes(item.reason),
   );
 }
+function selectCapture(
+  entry: Entry,
+  selector: EvidenceSelector,
+): RetrievalItem {
+  const capture = entry.capture;
+  if (!capture) throw new Error("Missing selected-source capture");
+  const base = {
+    id: entry.descriptor.id,
+    origin: entry.descriptor.origin,
+    sourcesIdentity: entry.descriptor.sourcesIdentity,
+    status: capture.status,
+    reasons: [...capture.reasons],
+  };
+  const requested = selector.lines ?? capture.selection.lines;
+  const evidence = entry.evidence;
+  if (evidence.type !== "source" || !capture.actualRange)
+    return {
+      ...base,
+      type: "unavailable",
+      status: "unavailable",
+      missingRanges: [requested],
+    };
+  const range = capture.actualRange;
+  const start = Math.max(range.start, requested.start);
+  const end = Math.min(range.end, requested.end);
+  if (start > end)
+    return {
+      ...base,
+      type: "unavailable",
+      status: "unavailable",
+      reasons: [...base.reasons, "range-not-captured"],
+      missingRanges: [requested],
+    };
+  const missing = missingRanges(requested, { start, end });
+  return {
+    ...base,
+    ...evidence,
+    source: { ...evidence.source, lines: { start, end } },
+    text: capturedLines(evidence.text)
+      .slice(start - range.start, end - range.start + 1)
+      .join(""),
+    status:
+      capture.status === "partial" || missing.length ? "partial" : "available",
+    reasons: [
+      ...base.reasons,
+      ...(selector.lines && missing.length ? ["range-not-captured"] : []),
+    ],
+    missingRanges: missing,
+    omittedLines: 0,
+  };
+}
+
 function selectItem(
   entry: Entry,
   selector: EvidenceSelector,
   inputs: EvidenceInputs,
 ): RetrievalItem {
+  if (entry.capture) return selectCapture(entry, selector);
   const base = {
     id: entry.descriptor.id,
     origin: entry.descriptor.origin,
@@ -384,7 +470,8 @@ export async function retrieveEvidence(
       ? inputs.bundle?.workflow.id === selector.workflowId &&
         entry.descriptor.selector.type === "step" &&
         entry.descriptor.selector.stepId === selector.stepId
-      : entry.descriptor.source?.path === selector.path,
+      : (entry.capture?.selection.path ?? entry.descriptor.source?.path) ===
+        selector.path,
   );
   const path =
     selector.type === "step" ? list[0]?.descriptor.source?.path : selector.path;
@@ -431,7 +518,8 @@ export async function retrieveEvidence(
         // Collection-truncated boundary lines must not become budget-truncated complete lines.
         let high =
           lines.length -
-          (collectionTruncated(inputs, item.source.path) &&
+          (item.origin !== "selected-source" &&
+          collectionTruncated(inputs, item.source.path) &&
           !item.text.endsWith("\n")
             ? 1
             : 0);

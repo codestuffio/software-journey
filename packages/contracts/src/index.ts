@@ -1144,6 +1144,7 @@ export const answerComparisonReportSchema = z
             revision: gitObjectIdSchema,
             snapshotIdentity: contentIdentitySchema,
             bundleIdentity: contentIdentitySchema.nullable(),
+            sourcesIdentity: contentIdentitySchema.optional(),
           })
           .strict(),
       )

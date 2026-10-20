@@ -2,6 +2,7 @@ import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import {
   retrievalLimits,
+  sourceCaptureLimits,
   validateRetrievalInputs,
 } from "@software-journey/contracts";
 
@@ -45,6 +46,7 @@ export async function loadEvidenceArtifacts(
   snapshotPath: string,
   bundlePath?: string,
   signal?: AbortSignal,
+  sourcesPath?: string,
 ) {
   const snapshot = await readBoundedJson(
     snapshotPath,
@@ -59,5 +61,13 @@ export async function loadEvidenceArtifacts(
           retrievalLimits.artifactBytes,
           signal,
         );
-  return validateRetrievalInputs(snapshot, bundle, signal);
+  const sources =
+    sourcesPath === undefined
+      ? undefined
+      : await readBoundedJson(
+          sourcesPath,
+          sourceCaptureLimits.maximumArtifactBytes,
+          signal,
+        );
+  return validateRetrievalInputs(snapshot, bundle, signal, sources);
 }

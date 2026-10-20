@@ -19,7 +19,7 @@ The four current questions use OpenSpec revision `bae58cf61479986431bb798acbe5a6
 
 The fifth question concerns task marker handling. Before revision `62106f40e3b7b7364529a2f928717e23e37282eb`, the strict pattern at `src/utils/task-progress.ts:26-51` omitted unfamiliar markers. At `11a9691524bad84a575854bf6dc5124f630479ba`, `src/utils/task-progress.ts:55-80` accepts additional checkbox shapes and treats only a padded, case-insensitive `x` as done. The regression assertions at `test/utils/task-progress.test.ts:359-382` preserve the unfinished denominator, including the 42-done/17-deferred case. These source references were inspected as committed text; imported tests were not run.
 
-Snapshots from both historical revisions were collected, but their parser/test code is inventoried without captured text. The workflow trace catalog supports only the pinned current revision. The historical case therefore reports unavailable until a separate collection change supplies the missing code. Commit subjects cannot substitute for that evidence.
+Snapshots from both historical revisions were collected, but their parser/test code is inventoried without captured text. The workflow trace catalog supports only the pinned current revision. Without source sidecars, the historical case reports unavailable. The optional collection procedure below supplies the missing ranges without changing the snapshots. Commit subjects cannot substitute for that evidence.
 
 Repository IDs currently hash the revision and tree. They differ across these three revisions. `revisionIdentities` records each exact ID/SHA pair; it does not prove repository lineage. Prepare the historical snapshots from isolated local checkouts with committed HEAD at the listed revisions. Keep hooks, filters, and imported scripts disabled. Never change the user's original checkout for an evaluation.
 
@@ -33,6 +33,45 @@ node tests/acceptance/prepare-answer-trials.mjs \
   --after .software-journey/answer-evaluation/after/snapshot.json \
   --output .software-journey/answer-evaluation/trial-inputs
 ```
+
+To include historical source evidence, first create a request for each revision. Save the following as `before-request.json` in ignored or external storage:
+
+```json
+{"schemaVersion":1,"selections":[{"path":"src/utils/task-progress.ts","lines":{"start":26,"end":51}}]}
+```
+
+Save this as `after-request.json`:
+
+```json
+{"schemaVersion":1,"selections":[{"path":"src/utils/task-progress.ts","lines":{"start":55,"end":80}},{"path":"test/utils/task-progress.test.ts","lines":{"start":359,"end":382}}]}
+```
+
+Use isolated local OpenSpec checkouts with HEAD at the exact before/after revisions above. Do not change the original checkout, fetch missing objects, install dependencies, or run imported scripts/tests. Collection reads committed objects, so checkouts created with `git worktree add --detach --no-checkout` suffice; disable hooks and filesystem monitoring for those Git operations. Remove the temporary worktrees after collection. Keep all capture outputs outside Git checkouts. Ignored directories inside a checkout are still rejected.
+
+```sh
+node apps/cli/dist/index.js capture-sources \
+  --repository /path/to/isolated-before-checkout \
+  --snapshot .software-journey/answer-evaluation/before/snapshot.json \
+  --request /path/to/before-request.json \
+  --output /path/outside-checkouts/before-capture
+
+node apps/cli/dist/index.js capture-sources \
+  --repository /path/to/isolated-after-checkout \
+  --snapshot .software-journey/answer-evaluation/after/snapshot.json \
+  --request /path/to/after-request.json \
+  --output /path/outside-checkouts/after-capture
+```
+
+Repeat the preparation command above with a new `--output` and these optional flags:
+
+```sh
+  --before-sources /path/outside-checkouts/before-capture/source-capture.json \
+  --after-sources /path/outside-checkouts/after-capture/source-capture.json
+```
+
+The helper validates each artifact's digest, ranges, and snapshot binding before creating output. Supplying either flag writes a version 2 evidence manifest with the supplied source paths and identities; omitting both preserves version 1. All five pinned benchmark cases can then resolve their citations through `compare-answers` after the temporary checkouts are removed. Run once without sidecars as a control: the fifth case must remain unavailable. Empty trial/assessment lists check reference availability without establishing answer quality.
+
+For historical discovery or retrieval, supply the matching snapshot and `--sources /path/to/source-capture.json` to `context` or `retrieve`. Use the exact path/source selector and required range; do not use a sidecar from the other revision. Sidecars are local evidence and do not authorize provider transfer.
 
 The output directory must be new. It contains benchmark and evidence files, empty trial and assessment lists, and a separate editable trial template. The template starts as synthetic, has no measurements or citations, and is never automatically included in `trials.json`.
 
@@ -71,7 +110,7 @@ Run the same command with completed assessments and a new output directory. Chan
 
 ## Bounds and privacy
 
-Inputs are explicitly selected regular JSON files, limited to 1 MiB each. An evidence manifest names snapshot and optional bundle paths, resolved relative to that manifest, plus expected content identities. Evidence artifacts are limited to 32 MiB each and 128 MiB combined. The benchmark permits 20 cases and trial lists permit 100 records. Reports are limited to 4 MiB. Processing has a 10-second deadline and supports Ctrl-C cancellation.
+Inputs are explicitly selected regular JSON files, limited to 1 MiB each. An evidence manifest names snapshot and optional bundle paths, resolved relative to that manifest, plus expected content identities. Snapshots and workflow bundles are limited to 32 MiB each; optional source sidecars are limited to 2 MiB each. All evidence counts toward the 128 MiB combined limit. The benchmark permits 20 cases and trial lists permit 100 records. Reports are limited to 4 MiB. Processing has a 10-second deadline and supports Ctrl-C cancellation.
 
 Output must be a new directory outside any Git checkout, including symlinked checkout paths. Reports are published atomically after validation. Failure or cancellation leaves no completed partial report. Empty trial sets are allowed for offline reference preparation; they establish no answer quality.
 

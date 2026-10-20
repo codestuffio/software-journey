@@ -9,11 +9,13 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
+import { sourceCaptureLimits } from "../packages/contracts/src/index.ts";
 import {
   loadEvidenceArtifacts,
   readBoundedJson,
 } from "../packages/repository/src/artifacts.ts";
-import { evidenceFixture } from "./fixtures/retrieval.ts";
+import { evidenceFixture, required } from "./fixtures/retrieval.ts";
+import { sourcesFixture } from "./fixtures/source-capture.ts";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
@@ -123,4 +125,64 @@ test("cancellation between file reads closes the open file", async () => {
     "canceled",
   );
   expect(closed).toBe(true);
+});
+
+test("artifact loader reads optional bounded sidecars and rejects tampering before exposure", async () => {
+  const dir = await directory();
+  const snapshotPath = join(dir, "snapshot.json");
+  const sourcePath = join(dir, "source-capture.json");
+  const { snapshot } = evidenceFixture();
+  const sources = await sourcesFixture();
+  await writeFile(snapshotPath, JSON.stringify(snapshot));
+  const original = JSON.stringify(sources);
+  await writeFile(sourcePath, original);
+  await expect(
+    loadEvidenceArtifacts(snapshotPath, undefined, undefined, sourcePath),
+  ).resolves.toEqual({ snapshot, bundle: undefined, sources });
+  for (const mutate of [
+    (value: typeof sources) => {
+      required(value.entries[0]).text = "other\n";
+    },
+    (value: typeof sources) => {
+      value.snapshot.repository.headCommit = "e".repeat(40);
+    },
+    (value: typeof sources) => {
+      required(required(value.entries[0]).actualRange).end++;
+    },
+  ]) {
+    const invalid = structuredClone(sources);
+    mutate(invalid);
+    await writeFile(sourcePath, JSON.stringify(invalid));
+    await expect(
+      loadEvidenceArtifacts(snapshotPath, undefined, undefined, sourcePath),
+    ).rejects.toThrow();
+  }
+  await writeFile(
+    sourcePath,
+    " ".repeat(sourceCaptureLimits.maximumArtifactBytes + 1),
+  );
+  await expect(
+    loadEvidenceArtifacts(snapshotPath, undefined, undefined, sourcePath),
+  ).rejects.toThrow("size limit");
+  await expect(
+    loadEvidenceArtifacts(snapshotPath, undefined, undefined, dir),
+  ).rejects.toThrow("regular file");
+  await expect(
+    loadEvidenceArtifacts(
+      snapshotPath,
+      undefined,
+      undefined,
+      join(dir, "absent"),
+    ),
+  ).rejects.toThrow();
+  await writeFile(sourcePath, original);
+  await expect(
+    loadEvidenceArtifacts(
+      snapshotPath,
+      undefined,
+      AbortSignal.abort(),
+      sourcePath,
+    ),
+  ).rejects.toThrow();
+  expect(await readFile(sourcePath, "utf8")).toBe(original);
 });

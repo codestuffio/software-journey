@@ -105,6 +105,12 @@ Both commands return one JSON response on stdout. Valid partial or unavailable e
 
 Retrieval reads only these selected files. It does not need the checkout, run Git, execute captured text, or use a network. Uncaptured source and missing lines stay explicit. Reports describe evidence and byte usage, not semantic answer quality or token savings. See the [pinned retrieval acceptance](docs/acceptance/openspec-retrieval.md).
 
+## Capture selected source ranges
+
+`capture-sources` reads explicitly selected committed ranges from a checkout matching a snapshot and publishes a separate local source sidecar. It does not execute imported code or fetch missing history. Add `--sources FILE` to `context` or `retrieve` to consume a matching sidecar after the checkout is unavailable. Comparison evidence manifests can also include source sidecars per revision. See [collection commands and historical trial preparation](docs/answer-evaluation.md) and [pinned acceptance](docs/acceptance/answer-evaluation.md).
+
+Requests are limited to 16 KiB and 16 exact path/range selections. Collection limits are 256 KiB per blob, 1 MiB combined reads, 128 KiB text per selection, 512 KiB combined text, a 2 MiB artifact, and a 30-second deadline. Outputs must be new directories outside Git checkouts. Excluded, missing, or oversized selections retain explicit coverage reasons. Artifacts are unsanitized local source; capturing them grants no provider-sharing approval.
+
 ## Optional assisted explanations
 
 First use a small source selection such as the 20-line request above. Previewing is offline and needs no credential:
