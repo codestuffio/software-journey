@@ -43,9 +43,9 @@ R5 bounded local retrieval is implemented, verified, and archived. R6 now includ
 
 ## Evaluation stretch: compare recorded answers
 
-The local `compare-answers` command adds a five-question rubric, human review bindings, and paired resource reports. [Trial instructions](answer-evaluation.md) describe local preparation and measurement. The four current OpenSpec questions resolve against captured sources. The historical behavior-change question remains unavailable because historical parser/test code is not captured. Synthetic comparisons validate report behavior only; real participant/provider trials, account costs, and measured savings remain open.
+The local `compare-answers` command adds a five-question rubric, human review bindings, and paired resource reports. [Trial instructions](answer-evaluation.md) describe local preparation and measurement. The four current OpenSpec questions resolve against captured sources. The historical behavior-change question now resolves with matching before/after source sidecars; without them it remains unavailable. [Pinned acceptance](acceptance/answer-evaluation.md) records 5/5 available cases with sidecars versus 4/5 without. Synthetic comparisons validate report behavior only; real participant/provider trials, account costs, and measured savings remain open.
 
-OpenSpec change: [`measure-evidence-answer-quality`](../openspec/changes/archive/2026-09-25-measure-evidence-answer-quality/).
+OpenSpec changes: [`measure-evidence-answer-quality`](../openspec/changes/archive/2026-09-25-measure-evidence-answer-quality/) and [`capture-selected-source-evidence`](../openspec/changes/archive/2026-10-21-capture-selected-source-evidence/).
 
 ## Deferred scaling work
 
