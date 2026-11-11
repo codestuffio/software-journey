@@ -23,6 +23,18 @@ pnpm test:e2e
 
 `verify` runs Biome, TypeScript, production builds, Vitest unit tests, CLI/HTTP smoke tests, and strict OpenSpec validation. `test:e2e` runs the Playwright browser suite. Smoke tests start a temporary local server and stop it afterward. For a production-build preview, run `pnpm build` followed by `HOST=127.0.0.1 pnpm --filter @software-journey/web start`.
 
+## Preview a walkthrough update on GitHub
+
+With the workflow and chapter catalog on `main`, open a PR from this repository’s `main` into `journey`. The **Walkthrough change plan** Action compares the proposed merge against the PR base. Set the Actions repository variable `JOURNEY_BASELINE_SHA` to a published walkthrough’s full commit SHA to use that revision instead. Update the variable when the published walkthrough changes.
+
+Open the run’s **Summary** to see reuse candidates, chapters that need updating, removed chapters, and the estimated token and model cost for the updates. The chapter catalog at `.github/journey-chapters.json` declares the files and directories each chapter depends on. If the baseline predates the catalog, the plan marks every chapter for its initial update. A reuse candidate means its declared Git evidence is unchanged. Publishing still requires a chapter output and citation validation. Planning requires no model credentials and consumes zero model tokens.
+
+To run the same comparison locally after building the CLI, use:
+
+```sh
+software-journey plan-walkthrough --repository . --baseline "$BASELINE_SHA" --target "$TARGET_SHA"
+```
+
 ## Analyze a local checkout
 
 The first MVP reads committed `HEAD` only. It inventories tracked files, extracts bounded Markdown documentation, records recent history and omissions, validates the snapshot with Zod, and writes it atomically outside the target checkout.

@@ -830,3 +830,5 @@ export {
   writeAnswerComparisonReport,
 } from "./answer-evaluation.js";
 export { loadEvidenceArtifacts, readBoundedJson } from "./artifacts.js";
+
+export { readJourneyPlanEvidence } from "./journey-plan.js";
