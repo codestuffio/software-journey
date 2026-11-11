@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "chapters": [
+    {
+      "id": "project-overview",
+      "title": "Project overview",
+      "paths": [
+        "README.md",
+        "docs/product.md",
+        "docs/architecture.md",
+        "packages/contracts/src"
+      ]
+    },
+    {
+      "id": "repository-analysis",
+      "title": "Repository analysis",
+      "paths": [
+        "apps/cli/src",
+        "packages/repository/src",
+        "packages/contracts/src"
+      ]
+    },
+    {
+      "id": "knowledge-and-retrieval",
+      "title": "Knowledge and retrieval",
+      "paths": ["packages/knowledge/src", "packages/contracts/src"]
+    },
+    {
+      "id": "walkthrough-experience",
+      "title": "Walkthrough experience",
+      "paths": [
+        "apps/web/src",
+        "packages/knowledge/src",
+        "packages/explanations/src",
+        "packages/contracts/src"
+      ]
+    }
+  ]
+}

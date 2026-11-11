@@ -1,0 +1,55 @@
+name: Walkthrough change plan
+
+on:
+  pull_request:
+    branches: [journey]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: journey-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    if: github.head_ref == 'main' && github.event.pull_request.head.repo.id == github.event.repository.id
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TURBO_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Check out the planner from main
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: planner
+          persist-credentials: false
+      - name: Check out the proposed merge for analysis
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: planner/.nvmrc
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: planner/package.json
+      - name: Build the CLI
+        working-directory: planner
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build --filter=@software-journey/cli
+      - name: Write the incremental plan
+        env:
+          BASELINE_SHA: ${{ vars.JOURNEY_BASELINE_SHA || github.event.pull_request.base.sha }}
+          BASELINE_SOURCE: ${{ vars.JOURNEY_BASELINE_SHA && 'the configured walkthrough revision' || 'the PR base revision' }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          plan=$(node planner/apps/cli/dist/index.js plan-walkthrough --repository candidate --baseline "$BASELINE_SHA" --target "$TARGET_SHA")
+          printf '%s\n\n%s\n' "$plan" "Baseline selected from $BASELINE_SOURCE" | tee -a "$GITHUB_STEP_SUMMARY"

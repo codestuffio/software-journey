@@ -1213,6 +1213,11 @@ export type AnswerComparisonReport = z.infer<
 >;
 
 export {
+  journeyCatalogPath,
+  journeyCatalogSchema,
+  journeyRevisionSchema,
+} from "./journey-plan.js";
+export {
   type SourceCapture,
   type SourceCaptureEntry,
   type SourceCaptureRequest,
