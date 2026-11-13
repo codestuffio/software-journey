@@ -14,12 +14,15 @@ import { runCompareAnswersCommand } from "./compare-answers.js";
 import { runEvidenceCommand } from "./evidence.js";
 import { runExplainCommand } from "./explain.js";
 
+import { runJourneyPlanCommand } from "./journey-plan.js";
+
 const args = process.argv.slice(2);
 
 function printHelp(): void {
   console.log(`Software Journey
 
 Usage:
+  software-journey plan-walkthrough --repository <path> --baseline <sha> --target <sha>
   software-journey analyze --repository <path> --output <directory>
   software-journey trace --repository <path> --snapshot <file> --workflow <id> --output <directory>
   software-journey evaluate --repository <path> --snapshot <file> --bundle <file> --output <directory>
@@ -44,6 +47,17 @@ function valueAfter(flag: string): string | undefined {
 async function main(): Promise<void> {
   if (args.length === 0 || (args.length === 1 && args[0] === "--help")) {
     printHelp();
+    return;
+  }
+  if (args[0] === "plan-walkthrough") {
+    try {
+      await runJourneyPlanCommand(args.slice(1));
+    } catch (error) {
+      console.error(
+        `Could not plan the walkthrough: ${error instanceof Error ? error.message : "Unexpected failure."}`,
+      );
+      process.exitCode = 1;
+    }
     return;
   }
   if (args[0] === "compare-answers") {

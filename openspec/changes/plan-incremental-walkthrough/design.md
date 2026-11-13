@@ -1,0 +1,6 @@
+## Decisions
+
+- Run on same-repository main-to-journey PR opens, updates, reopens, and retargets. Run the CLI from the same-repository main head revision and inspect the proposed merge checkout as Git data. The job uses read-only access.
+- Compare against the configured last published SHA when supplied, otherwise the PR base SHA. The report records both compared SHAs and labels unchanged chapters as reuse candidates. A missing catalog at the baseline makes target chapters new. A configured SHA that cannot be read fails with a diagnostic.
+- Read bounded chapter catalogs from committed Git blobs. Chapter IDs and literal repository-relative paths are explicit. Directory entries use Git tree identities, so nested changes invalidate them. Shared evidence paths can appear in multiple chapters. Compare object identities and modes, without reading file contents or claiming line-level or GitHub metadata revalidation.
+- Report a planning allowance of 8,192 input and 700 output tokens per updated chapter, with the project's Haiku 5.5 rate assumptions. Reused and removed chapters contribute zero. Report changed scopes and bounds rather than including excerpts. The workflow timeout bounds Git and tool setup. Only generated summary metadata leaves the runner.
