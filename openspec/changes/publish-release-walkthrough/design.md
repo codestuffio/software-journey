@@ -1,0 +1,5 @@
+## Design
+
+A published release prepares a preview. A maintainer dispatches the workflow from the default branch with the release tag and the preview digest. The workflow recomputes the plan and compares digests before sharing source. A separate job attaches one Markdown asset using a write token, so generation has only read access. Serialize by release tag and prohibit asset overwrite.
+
+Track major, minor, patch, and prerelease classes independently. Exact versions can opt in and exclusions win. Use a previous published asset on the target's ancestry when available, or an explicitly selected authored seed release. Reuse requires unchanged declared Git objects and verified citation text. Select bounded committed text for other chapters and validate model response citation IDs. Planning reads no working-tree source. Release notes, catalogs, and model data remain untrusted. A single Markdown asset carries chapter content and embedded provenance and is uploaded only after assembly succeeds.

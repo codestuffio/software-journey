@@ -1,0 +1,106 @@
+name: Release walkthrough
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published release tag, such as v2.0.0
+        required: true
+        type: string
+      approval:
+        description: Reviewed approval digest (leave blank to prepare a preview)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: journey-release-${{ github.event.release.tag_name || inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.event_name == 'release' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      ready: ${{ steps.prepare.outputs.ready }}
+      revision: ${{ steps.prepare.outputs.revision }}
+      release-id: ${{ steps.prepare.outputs.release-id }}
+    env:
+      JOURNEY_RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+      JOURNEY_RELEASE_TYPES: ${{ vars.JOURNEY_RELEASE_TYPES }}
+      JOURNEY_RELEASE_INCLUDE: ${{ vars.JOURNEY_RELEASE_INCLUDE }}
+      JOURNEY_RELEASE_EXCLUDE: ${{ vars.JOURNEY_RELEASE_EXCLUDE }}
+      JOURNEY_SEED_RELEASE: ${{ vars.JOURNEY_SEED_RELEASE }}
+      JOURNEY_APPROVAL: ${{ inputs.approval }}
+      TURBO_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - uses: pnpm/action-setup@v6
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build --filter=@software-journey/cli
+      - name: Prepare or generate the walkthrough
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ inputs.approval && secrets.ANTHROPIC_API_KEY || '' }}
+        run: bash .github/scripts/journey-release.sh
+      - name: Upload exact request for review
+        if: steps.prepare.outputs.preview == 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: walkthrough-approval
+          path: ${{ runner.temp }}/journey-release/approval.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Upload complete walkthrough for publication
+        if: steps.prepare.outputs.ready == 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: approved-walkthrough
+          path: ${{ runner.temp }}/journey-release/software-journey.md
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.ready == 'yes'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: approved-walkthrough
+      - name: Attach the walkthrough to the approved release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.revision }}
+          RELEASE_ID: ${{ needs.prepare.outputs.release-id }}
+        run: |
+          set -euo pipefail
+          tag=$(jq -nr --arg tag "$RELEASE_TAG" '$tag | @uri')
+          release=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag")
+          test "$(jq -r '.id' <<< "$release")" = "$RELEASE_ID"
+          test "$(jq -r '.draft or (.immutable == true)' <<< "$release")" = false
+          object=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq '.object')
+          for _ in {1..8}; do
+            [[ $(jq -r '.type' <<< "$object") == tag ]] || break
+            sha=$(jq -r '.sha' <<< "$object")
+            object=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$sha" --jq '.object')
+          done
+          test "$(jq -r '.type + ":" + .sha' <<< "$object")" = "commit:$RELEASE_SHA"
+          gh release upload --repo "$GITHUB_REPOSITORY" -- "$RELEASE_TAG" software-journey.md
