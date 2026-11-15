@@ -193,3 +193,24 @@ Software Journey is licensed under the [MIT License](LICENSE). Packages remain p
 ## GitHub
 
 The repository is [codestuffio/software-journey](https://github.com/codestuffio/software-journey). See [GitHub setup](docs/github-setup.md) for checkout and CI details.
+
+## Attach a walkthrough to a release
+
+Publish a GitHub release whose tagged revision contains the release workflow. The **Release walkthrough** Action prepares a preview for qualifying versions. Stable major tags such as `v2.0.0` qualify by default. PRs into `journey` continue to show a change plan.
+
+Set these repository variables under **Settings → Secrets and variables → Actions**:
+
+| Variable | Behavior |
+| --- | --- |
+| `JOURNEY_RELEASE_TYPES` | Comma- or space-separated `major`, `minor`, `patch`, or `prerelease`. Use `none` for exact-version opt-ins only. |
+| `JOURNEY_RELEASE_INCLUDE` | Exact SemVer versions to opt in, such as `2.1.3, v3.0.0-rc.1`. |
+| `JOURNEY_RELEASE_EXCLUDE` | Exact versions to skip. Exclusions win. |
+| `JOURNEY_SEED_RELEASE` | Optional authored release to use before the first automated publication. For this repository, use `journey-walkthrough-v1`. Its notes contain one prose paragraph and one paragraph of pinned GitHub citations per chapter. |
+
+The version filter accepts tags with or without a leading `v`. Stable versions with a nonzero patch number count as patch releases. Versions ending in `.0` with a nonzero minor number count as minor releases. SemVer prerelease tags and releases marked **Pre-release** on GitHub count as prereleases.
+
+1. Open the Action summary and download **walkthrough-approval**. Review the exact Anthropic requests, selected excerpts, and cost estimate. The preview artifact is available to readers with Actions access for one day.
+2. Re-run **Release walkthrough** with **Run workflow** on the default branch. Enter the release tag and the approval digest from the summary. A changed plan requires a new preview. Leave the digest blank to prepare a preview on demand.
+3. The Action generates only chapters that need an update and attaches `software-journey.md` to that release. Set the `ANTHROPIC_API_KEY` Actions secret to enable approved generation. A fully reusable walkthrough needs no model key.
+
+The Action looks at the 100 most recent GitHub releases for an earlier publication on the tagged commit’s ancestry. It checks the prior chapter’s declared evidence and cited lines before reusing it and leaves the original citation URLs intact. Generation uses up to four committed excerpts per chapter. GitHub releases that are already immutable cannot accept an asset and fail before generation.

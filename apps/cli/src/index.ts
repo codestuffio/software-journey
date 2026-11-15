@@ -16,6 +16,9 @@ import { runExplainCommand } from "./explain.js";
 
 import { runJourneyPlanCommand } from "./journey-plan.js";
 
+import { runJourneyReleaseCommand } from "./journey-release.js";
+import { releaseEligible } from "./journey-release-policy.js";
+
 const args = process.argv.slice(2);
 
 function printHelp(): void {
@@ -47,6 +50,46 @@ function valueAfter(flag: string): string | undefined {
 async function main(): Promise<void> {
   if (args.length === 0 || (args.length === 1 && args[0] === "--help")) {
     printHelp();
+    return;
+  }
+  if (args[0] === "release-walkthrough") {
+    try {
+      const env = process.env;
+      const policy = {
+        types: env.JOURNEY_RELEASE_TYPES || undefined,
+        include: env.JOURNEY_RELEASE_INCLUDE,
+        exclude: env.JOURNEY_RELEASE_EXCLUDE,
+      };
+      const tag = env.JOURNEY_RELEASE_TAG ?? "";
+      const prerelease = env.JOURNEY_PRERELEASE === "true";
+      if (args[1] === "eligible") {
+        console.log(releaseEligible(tag, prerelease, policy) ? "yes" : "no");
+        return;
+      }
+      const result = await runJourneyReleaseCommand(
+        {
+          repository: env.JOURNEY_REPOSITORY ?? ".",
+          repo: env.GITHUB_REPOSITORY ?? "",
+          releaseId: env.JOURNEY_RELEASE_ID ?? "",
+          revision: env.JOURNEY_RELEASE_SHA ?? "",
+          tag,
+          prerelease,
+          policy,
+          baselineRevision: env.JOURNEY_PUBLICATION_SHA,
+          baselineAsset: env.JOURNEY_PUBLICATION_ASSET,
+          seedNotes: env.JOURNEY_PUBLICATION_SEED,
+          output: env.JOURNEY_OUTPUT ?? ".",
+          approval: env.JOURNEY_APPROVAL || undefined,
+        },
+        { getApiKey: () => env.ANTHROPIC_API_KEY },
+      );
+      console.log(result.summary);
+    } catch (error) {
+      console.error(
+        `Could not prepare a release walkthrough: ${error instanceof Error ? error.message : "Unexpected failure."}`,
+      );
+      process.exitCode = 1;
+    }
     return;
   }
   if (args[0] === "plan-walkthrough") {
