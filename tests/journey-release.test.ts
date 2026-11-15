@@ -85,7 +85,10 @@ test("approved release updates the affected chapter and preserves verified chapt
     });
   const transport = vi.fn<typeof fetch>(async () => draft([1]));
   const getApiKey = vi.fn(() => "fixture-key");
-  const deps = { transport, getApiKey };
+  const federatedAuth = vi.fn(async () => ({
+    Authorization: "Bearer fixture-token",
+  }));
+  const deps = { transport, getApiKey, federatedAuth };
   const metadata = (markdown: string) => {
     const embedded = markdown.match(/software-journey:v1 (\S+) -->/)?.[1];
     if (!embedded) throw new Error("Missing walkthrough metadata.");
@@ -140,6 +143,7 @@ test("approved release updates the affected chapter and preserves verified chapt
     expect(preview.summary).toContain("Updates (1) · Reused (3)");
     expect(getApiKey).not.toHaveBeenCalled();
     expect(transport).not.toHaveBeenCalled();
+    expect(federatedAuth).not.toHaveBeenCalled();
 
     const request = JSON.parse(
       await readFile(join(output, "approval.json"), "utf8"),
@@ -160,6 +164,7 @@ test("approved release updates the affected chapter and preserves verified chapt
     ).rejects.toThrow("Approval digest changed");
     expect(getApiKey).not.toHaveBeenCalled();
     expect(transport).not.toHaveBeenCalled();
+    expect(federatedAuth).not.toHaveBeenCalled();
 
     transport.mockImplementationOnce(async () => draft([99]));
     await expect(runJourneyReleaseCommand(approved, deps)).rejects.toThrow(
@@ -172,6 +177,12 @@ test("approved release updates the affected chapter and preserves verified chapt
     transport.mockClear();
     await runJourneyReleaseCommand(approved, deps);
     expect(transport).toHaveBeenCalledTimes(1);
+    expect(transport.mock.calls[0]?.[1]?.headers).toMatchObject({
+      Authorization: "Bearer fixture-token",
+    });
+    expect(transport.mock.calls[0]?.[1]?.headers).not.toHaveProperty(
+      "x-api-key",
+    );
     expect(transport.mock.calls[0]?.[1]?.body).toBe(
       JSON.stringify(request.chapters[0].request.body),
     );
@@ -188,6 +199,7 @@ test("approved release updates the affected chapter and preserves verified chapt
     await mkdir(next);
     transport.mockClear();
     getApiKey.mockClear();
+    federatedAuth.mockClear();
     const nextOptions = {
       ...options,
       releaseId: "44",
@@ -207,6 +219,7 @@ test("approved release updates the affected chapter and preserves verified chapt
       metadata(await readFile(join(next, "software-journey.md"), "utf8")),
     ).toEqual(publication);
     expect(transport).not.toHaveBeenCalled();
+    expect(federatedAuth).not.toHaveBeenCalled();
     expect(getApiKey).not.toHaveBeenCalled();
 
     const stale = join(temp, "stale");

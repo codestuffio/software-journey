@@ -13,6 +13,10 @@ on:
         description: Reviewed approval digest (leave blank to prepare a preview)
         required: false
         type: string
+      verify_identity:
+        description: Check Anthropic federation without generating or publishing
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -21,40 +25,42 @@ concurrency:
   group: journey-release-${{ github.event.release.tag_name || inputs.release_tag }}
   cancel-in-progress: false
 
+env:
+  JOURNEY_RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+  JOURNEY_RELEASE_TYPES: ${{ vars.JOURNEY_RELEASE_TYPES }}
+  JOURNEY_RELEASE_INCLUDE: ${{ vars.JOURNEY_RELEASE_INCLUDE }}
+  JOURNEY_RELEASE_EXCLUDE: ${{ vars.JOURNEY_RELEASE_EXCLUDE }}
+  JOURNEY_SEED_RELEASE: ${{ vars.JOURNEY_SEED_RELEASE }}
+  TURBO_TELEMETRY_DISABLED: "1"
+
 jobs:
   prepare:
-    if: github.event_name == 'release' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: >-
+      github.event_name == 'release' ||
+      (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && !inputs.approval && !inputs.verify_identity)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    outputs:
-      ready: ${{ steps.prepare.outputs.ready }}
-      revision: ${{ steps.prepare.outputs.revision }}
-      release-id: ${{ steps.prepare.outputs.release-id }}
-    env:
-      JOURNEY_RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
-      JOURNEY_RELEASE_TYPES: ${{ vars.JOURNEY_RELEASE_TYPES }}
-      JOURNEY_RELEASE_INCLUDE: ${{ vars.JOURNEY_RELEASE_INCLUDE }}
-      JOURNEY_RELEASE_EXCLUDE: ${{ vars.JOURNEY_RELEASE_EXCLUDE }}
-      JOURNEY_SEED_RELEASE: ${{ vars.JOURNEY_SEED_RELEASE }}
-      JOURNEY_APPROVAL: ${{ inputs.approval }}
-      TURBO_TELEMETRY_DISABLED: "1"
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - &checkout
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.repository.default_branch }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - &node
+        uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-      - uses: pnpm/action-setup@v6
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build --filter=@software-journey/cli
-      - name: Prepare or generate the walkthrough
+      - &pnpm
+        uses: pnpm/action-setup@v6
+      - &install
+        run: pnpm install --frozen-lockfile
+      - &build
+        run: pnpm build --filter=@software-journey/cli
+      - name: Prepare walkthrough approval
         id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
-          ANTHROPIC_API_KEY: ${{ inputs.approval && secrets.ANTHROPIC_API_KEY || '' }}
         run: bash .github/scripts/journey-release.sh
       - name: Upload exact request for review
         if: steps.prepare.outputs.preview == 'yes'
@@ -64,8 +70,46 @@ jobs:
           path: ${{ runner.temp }}/journey-release/approval.json
           if-no-files-found: error
           retention-days: 1
+
+  generate:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (inputs.approval || inputs.verify_identity)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      ready: ${{ steps.generate.outputs.ready }}
+      revision: ${{ steps.generate.outputs.revision }}
+      release-id: ${{ steps.generate.outputs.release-id }}
+    env:
+      ANTHROPIC_AUTH_MODE: github-wif
+      ANTHROPIC_FEDERATION_RULE_ID: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+      ANTHROPIC_ORGANIZATION_ID: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+      ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+      ANTHROPIC_WORKSPACE_ID: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
+    steps:
+      - *checkout
+      - *node
+      - *pnpm
+      - *install
+      - *build
+      - name: Verify Anthropic workload identity
+        if: inputs.verify_identity
+        run: node apps/cli/dist/index.js release-walkthrough check-identity | tee -a "$GITHUB_STEP_SUMMARY"
+        shell: bash
+      - name: Generate approved chapters
+        id: generate
+        if: inputs.approval && !inputs.verify_identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOURNEY_APPROVAL: ${{ inputs.approval }}
+        run: bash .github/scripts/journey-release.sh
       - name: Upload complete walkthrough for publication
-        if: steps.prepare.outputs.ready == 'yes'
+        if: steps.generate.outputs.ready == 'yes'
         uses: actions/upload-artifact@v4
         with:
           name: approved-walkthrough
@@ -74,8 +118,8 @@ jobs:
           retention-days: 1
 
   publish:
-    needs: prepare
-    if: needs.prepare.outputs.ready == 'yes'
+    needs: generate
+    if: needs.generate.outputs.ready == 'yes'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -88,8 +132,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-          RELEASE_SHA: ${{ needs.prepare.outputs.revision }}
-          RELEASE_ID: ${{ needs.prepare.outputs.release-id }}
+          RELEASE_SHA: ${{ needs.generate.outputs.revision }}
+          RELEASE_ID: ${{ needs.generate.outputs.release-id }}
         run: |
           set -euo pipefail
           tag=$(jq -nr --arg tag "$RELEASE_TAG" '$tag | @uri')
