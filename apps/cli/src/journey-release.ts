@@ -271,7 +271,7 @@ async function generate(
   body: ReturnType<typeof providerBody>,
   signal: AbortSignal,
   transport: typeof fetch,
-  apiKey: string,
+  authHeaders: Record<string, string>,
 ) {
   try {
     const result = await transport(endpoint, {
@@ -281,7 +281,7 @@ async function generate(
       headers: {
         "Content-Type": "application/json",
         "anthropic-version": apiVersion,
-        "x-api-key": apiKey,
+        ...authHeaders,
       },
       body: JSON.stringify(body),
     });
@@ -374,6 +374,7 @@ export async function runJourneyReleaseCommand(
   dependencies: {
     transport?: typeof fetch;
     getApiKey?: () => string | undefined;
+    federatedAuth?: () => Promise<Record<string, string>>;
   } = {},
 ) {
   if (
@@ -519,8 +520,11 @@ export async function runJourneyReleaseCommand(
     throw new Error(
       "Approval digest changed. Review a new preview before generating.",
     );
-  const apiKey = updates ? dependencies.getApiKey?.() : undefined;
-  if (updates && !apiKey)
+  const apiKey =
+    updates && !dependencies.federatedAuth
+      ? dependencies.getApiKey?.()
+      : undefined;
+  if (updates && !apiKey && !dependencies.federatedAuth)
     throw new Error("Set ANTHROPIC_API_KEY for approved chapter generation.");
   const chapters: Chapter[] = [];
   for (const chapter of planned) {
@@ -528,14 +532,16 @@ export async function runJourneyReleaseCommand(
       chapters.push(chapter.reused);
       continue;
     }
-    if (!chapter.request || !apiKey)
-      throw new Error("Missing approved chapter request.");
+    if (!chapter.request) throw new Error("Missing approved chapter request.");
     const { sources, body } = chapter.request;
+    const authHeaders = dependencies.federatedAuth
+      ? await dependencies.federatedAuth()
+      : { "x-api-key": apiKey ?? "" };
     const draft = await generate(
       body,
       AbortSignal.timeout(30_000),
       dependencies.transport ?? fetch,
-      apiKey,
+      authHeaders,
     );
     const blocks = draft.blocks.map(({ text, citations }) => ({
       text,

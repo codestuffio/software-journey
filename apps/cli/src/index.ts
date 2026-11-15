@@ -9,13 +9,12 @@ import {
   writeSnapshot,
   writeWorkflowBundle,
 } from "@software-journey/repository";
+import { createAnthropicFederatedAuth } from "./anthropic-wif.js";
 import { runCaptureSourcesCommand } from "./capture-sources.js";
 import { runCompareAnswersCommand } from "./compare-answers.js";
 import { runEvidenceCommand } from "./evidence.js";
 import { runExplainCommand } from "./explain.js";
-
 import { runJourneyPlanCommand } from "./journey-plan.js";
-
 import { runJourneyReleaseCommand } from "./journey-release.js";
 import { releaseEligible } from "./journey-release-policy.js";
 
@@ -55,6 +54,13 @@ async function main(): Promise<void> {
   if (args[0] === "release-walkthrough") {
     try {
       const env = process.env;
+      if (args[1] === "check-identity") {
+        await createAnthropicFederatedAuth(env)();
+        console.log(
+          "Anthropic accepted the GitHub workload identity. No chapter was sent.",
+        );
+        return;
+      }
       const policy = {
         types: env.JOURNEY_RELEASE_TYPES || undefined,
         include: env.JOURNEY_RELEASE_INCLUDE,
@@ -81,7 +87,9 @@ async function main(): Promise<void> {
           output: env.JOURNEY_OUTPUT ?? ".",
           approval: env.JOURNEY_APPROVAL || undefined,
         },
-        { getApiKey: () => env.ANTHROPIC_API_KEY },
+        env.ANTHROPIC_AUTH_MODE === "github-wif"
+          ? { federatedAuth: createAnthropicFederatedAuth(env) }
+          : { getApiKey: () => env.ANTHROPIC_API_KEY },
       );
       console.log(result.summary);
     } catch (error) {

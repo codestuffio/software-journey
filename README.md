@@ -211,6 +211,13 @@ The version filter accepts tags with or without a leading `v`. Stable versions w
 
 1. Open the Action summary and download **walkthrough-approval**. Review the exact Anthropic requests, selected excerpts, and cost estimate. The preview artifact is available to readers with Actions access for one day.
 2. Re-run **Release walkthrough** with **Run workflow** on the default branch. Enter the release tag and the approval digest from the summary. A changed plan requires a new preview. Leave the digest blank to prepare a preview on demand.
-3. The Action generates only chapters that need an update and attaches `software-journey.md` to that release. Set the `ANTHROPIC_API_KEY` Actions secret to enable approved generation. A fully reusable walkthrough needs no model key.
+3. The Action generates only chapters that need an update and attaches `software-journey.md` to that release. GitHub generation uses Anthropic Workload Identity Federation. A fully reusable walkthrough makes no token exchange or model call.
 
 The Action looks at the 100 most recent GitHub releases for an earlier publication on the tagged commit’s ancestry. It checks the prior chapter’s declared evidence and cited lines before reusing it and leaves the original citation URLs intact. Generation uses up to four committed excerpts per chapter. GitHub releases that are already immutable cannot accept an asset and fail before generation.
+
+
+### Connect GitHub Actions to Anthropic
+
+In Claude Console, configure a GitHub Actions federation rule for this repository’s default branch and scope it to the release workflow, a service account, and a billed workspace. The approved job uses the `workflow_dispatch` event. Use the audience `https://api.anthropic.com` and the `workspace:developer` OAuth scope. Store the rule, organization, service-account, and workspace IDs as Actions **variables** named `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_SERVICE_ACCOUNT_ID`, and `ANTHROPIC_WORKSPACE_ID`. These IDs identify the trust configuration. The workflow keeps the short-lived credentials in memory.
+
+To check the connection, run **Release walkthrough** on the default branch with **verify_identity** enabled. Supply a release tag for the form and leave approval blank. This checks the exchange without sending source to Messages or publishing an asset.
