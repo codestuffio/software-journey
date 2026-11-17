@@ -1218,6 +1218,11 @@ export {
   journeyRevisionSchema,
 } from "./journey-plan.js";
 export {
+  type JourneyPublication,
+  journeyDraftSchema,
+  journeyPublicationSchema,
+} from "./journey-release.js";
+export {
   type SourceCapture,
   type SourceCaptureEntry,
   type SourceCaptureRequest,

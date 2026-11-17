@@ -21,6 +21,8 @@ An agent uses the same evidence through a compact manifest and bounded retrieval
 
 Code and documentation can disagree. Commit messages record author claims, not proof of intent. The application must distinguish observed facts, quoted documentation, inferred explanations, and unknowns. Missing evidence should remain visible.
 
+For teams using a `journey` branch, open the **Walkthrough change plan** in the PR’s Actions summary before reviewing the individual chapters. The plan shows which chapters need an update and which are candidates for reuse.
+
 ## Proposed milestones
 
 | Milestone | Deliverable | Acceptance signal |
