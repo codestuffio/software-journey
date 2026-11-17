@@ -123,7 +123,7 @@ test("plans reuse, shared evidence updates, and removals from pinned Git revisio
     expect(update.stdout).toContain("| Profile | Reuse candidate |");
     expect(update.stdout).toContain("| Retired flow | Remove |");
     expect(update.stdout).toContain(
-      "16384 input tokens + 1400 output tokens · $0.00234 USD",
+      "16384 input tokens + 4000 output tokens · $0.00364 USD",
     );
     expect(update.stdout).not.toContain("source text must stay out");
 

@@ -3,7 +3,7 @@ import { readJourneyPlanEvidence } from "@software-journey/repository";
 export const journeyBudget = {
   model: "claude-haiku-5-5",
   inputTokensPerUpdate: 8192,
-  outputTokensPerUpdate: 700,
+  outputTokensPerUpdate: 2000,
   inputUsdPerMillion: 0.1,
   outputUsdPerMillion: 0.5,
 };
@@ -66,7 +66,7 @@ export async function runJourneyPlanCommand(args: string[]) {
       "",
       `Estimated generation budget for \`${journeyBudget.model}\` is **${input} input tokens + ${output} output tokens · $${cost.toFixed(5)} USD**.`,
       "",
-      "The estimate uses an allowance of 8,192 input and 700 output tokens per update at $0.10 and $0.50 per million tokens, respectively. This plan consumed zero model tokens.",
+      `The estimate uses an allowance of ${journeyBudget.inputTokensPerUpdate.toLocaleString("en-US")} input and ${journeyBudget.outputTokensPerUpdate.toLocaleString("en-US")} output tokens per update at $${journeyBudget.inputUsdPerMillion.toFixed(2)} and $${journeyBudget.outputUsdPerMillion.toFixed(2)} per million tokens, respectively. This plan consumed zero model tokens.`,
       "",
       "Coverage is limited to declared Git paths. Reuse candidates still need an available chapter output and citation validation before publication.",
     ].join("\n"),

@@ -151,6 +151,10 @@ test("approved release updates the affected chapter and preserves verified chapt
     expect(request.chapters[0].request.body.messages[0].content).toContain(
       "New release instructions",
     );
+    expect(request.chapters[0].request.body.max_tokens).toBe(2000);
+    expect(request.chapters[0].request.body.system).toContain(
+      "at most 70 words",
+    );
     expect(JSON.stringify(request)).not.toContain("Unsaved changes");
     expect(
       request.chapters
@@ -175,6 +179,20 @@ test("approved release updates the affected chapter and preserves verified chapt
     await expect(runJourneyReleaseCommand(approved, deps)).rejects.toThrow(
       "Messages returned HTTP 400. Request ID req_fixture.",
     );
+
+    transport.mockResolvedValueOnce(
+      Response.json({
+        model: "claude-haiku-5-5",
+        stop_reason: "max_tokens",
+        content: [{ type: "text", text: '{"blocks":[' }],
+      }),
+    );
+    await expect(runJourneyReleaseCommand(approved, deps)).rejects.toThrow(
+      "The response stopped with max_tokens.",
+    );
+    await expect(
+      readFile(join(output, "software-journey.md")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
 
     transport.mockImplementationOnce(async () => draft([99]));
     await expect(runJourneyReleaseCommand(approved, deps)).rejects.toThrow(
