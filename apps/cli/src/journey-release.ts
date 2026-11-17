@@ -273,52 +273,145 @@ async function generate(
   transport: typeof fetch,
   authHeaders: Record<string, string>,
 ) {
-  try {
-    const result = await transport(endpoint, {
-      method: "POST",
-      redirect: "error",
-      signal,
-      headers: {
-        "Content-Type": "application/json",
-        "anthropic-version": apiVersion,
-        ...authHeaders,
-      },
-      body: JSON.stringify(body),
-    });
-    if (!result.ok || !result.body)
-      throw new Error("Provider request rejected.");
-    const reader = result.body.getReader();
-    let size = 0;
-    const chunks: Uint8Array[] = [];
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        size += value.byteLength;
-        if (size > 64 * 1024) throw new Error("Provider response too large.");
-        chunks.push(value);
-      }
-    } finally {
-      await reader.cancel().catch(() => {});
-      reader.releaseLock();
-    }
-    const wire = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-    const block = wire.content?.[0];
-    if (wire.service_tier && wire.service_tier !== "standard")
-      throw new Error("Unexpected provider service tier.");
-    if (
-      wire.model !== body.model ||
-      wire.stop_reason !== "end_turn" ||
-      wire.content?.length !== 1 ||
-      block?.type !== "text"
-    )
-      throw new Error("Incomplete provider response.");
-    return journeyDraftSchema.parse(JSON.parse(block.text));
-  } catch {
+  const fail = (reason: string): never => {
     throw new Error(
-      "Chapter generation failed or returned invalid output. No walkthrough was published. Charges may have occurred.",
+      `Anthropic chapter generation failed. ${reason} Charges may have occurred.`,
+    );
+  };
+  const result = await transport(endpoint, {
+    method: "POST",
+    redirect: "error",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+      "anthropic-version": apiVersion,
+      ...authHeaders,
+    },
+    body: JSON.stringify(body),
+  }).catch(() =>
+    fail(
+      signal.aborted
+        ? "The request timed out."
+        : "The request could not be completed.",
+    ),
+  );
+  const reader = result.body?.getReader();
+  if (!reader)
+    return fail(`Messages returned HTTP ${result.status} without a body.`);
+  let size = 0;
+  const chunks: Uint8Array[] = [];
+  try {
+    for (;;) {
+      const { done, value } = await reader
+        .read()
+        .catch(() =>
+          fail(
+            signal.aborted
+              ? "The response timed out."
+              : "The response stream failed.",
+          ),
+        );
+      if (done) break;
+      size += value.byteLength;
+      if (size > 64 * 1024) fail("The response exceeded 64 KiB.");
+      chunks.push(value);
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+  const responseText = Buffer.concat(chunks).toString("utf8");
+  if (!result.ok) {
+    const id = result.headers.get("request-id");
+    const requestId =
+      id && /^req_[a-z0-9]+$/iu.test(id) && id.length <= 100
+        ? ` Request ID ${id}.`
+        : "";
+    let hint = "";
+    try {
+      const response = JSON.parse(responseText);
+      const message = response?.error?.message;
+      if (typeof message === "string") {
+        if (/credit balance|billing|spend limit/iu.test(message))
+          hint = " Check API billing and workspace spend limits.";
+        else if (/output_config|json.schema|structured.output/iu.test(message))
+          hint = " Messages rejected the structured output configuration.";
+        else if (/workspace|permission|scope/iu.test(message))
+          hint = " Check the Anthropic workspace and token permissions.";
+      }
+    } catch {
+      // Providers can return HTML or empty bodies for infrastructure failures.
+    }
+    fail(`Messages returned HTTP ${result.status}.${hint}${requestId}`);
+  }
+  let wire: {
+    model?: unknown;
+    service_tier?: unknown;
+    usage?: { service_tier?: unknown };
+    stop_reason?: unknown;
+    content?: { type?: unknown; text?: unknown }[];
+  };
+  try {
+    wire = JSON.parse(responseText);
+  } catch {
+    return fail("The Messages response was not a JSON object.");
+  }
+  if (!wire || typeof wire !== "object" || Array.isArray(wire))
+    fail("The Messages envelope was not an object.");
+  const tier = wire.usage?.service_tier ?? wire.service_tier;
+  if (tier && tier !== "standard")
+    fail("The response used an unexpected service tier.");
+  if (wire.model !== body.model)
+    fail("The response model differed from the approved model.");
+  if (wire.stop_reason !== "end_turn") {
+    const reason = wire.stop_reason;
+    const known =
+      reason === "max_tokens" ||
+      reason === "refusal" ||
+      reason === "model_context_window_exceeded";
+    fail(
+      known
+        ? `The response stopped with ${reason}.`
+        : "The response did not finish with end_turn.",
     );
   }
+  const block =
+    Array.isArray(wire.content) && wire.content.length === 1
+      ? wire.content[0]
+      : null;
+  const replyText =
+    block?.type === "text" && typeof block.text === "string"
+      ? block.text
+      : null;
+  if (replyText === null)
+    return fail("Messages did not return one text block.");
+
+  let draft: unknown;
+  try {
+    draft = JSON.parse(replyText);
+  } catch {
+    return fail("The chapter text was not JSON.");
+  }
+  const parsed = journeyDraftSchema.safeParse(draft);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.slice(0, 4).map((issue) => {
+      const path = issue.path
+        .map((part) =>
+          typeof part === "number" ||
+          part === "blocks" ||
+          part === "text" ||
+          part === "citations"
+            ? String(part)
+            : "field",
+        )
+        .join(".");
+      return `${path || "chapter"} (${issue.code})`;
+    });
+    return fail(
+      `The chapter did not match the output schema at ${issues.join(", ")}.`,
+    );
+  }
+  return parsed.data;
 }
 
 const inScope = (path: string, paths: string[]) =>

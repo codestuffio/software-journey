@@ -166,6 +166,16 @@ test("approved release updates the affected chapter and preserves verified chapt
     expect(transport).not.toHaveBeenCalled();
     expect(federatedAuth).not.toHaveBeenCalled();
 
+    transport.mockResolvedValueOnce(
+      new Response("Untrusted response content", {
+        status: 400,
+        headers: { "request-id": "req_fixture" },
+      }),
+    );
+    await expect(runJourneyReleaseCommand(approved, deps)).rejects.toThrow(
+      "Messages returned HTTP 400. Request ID req_fixture.",
+    );
+
     transport.mockImplementationOnce(async () => draft([99]));
     await expect(runJourneyReleaseCommand(approved, deps)).rejects.toThrow(
       "outside the approved request",
